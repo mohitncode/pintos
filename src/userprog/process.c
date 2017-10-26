@@ -52,13 +52,16 @@ static void start_process (void *file_name_) {
   struct intr_frame if_;
   bool success;
 
-  printf ("Tokenizing %s into space delimited tokens", file_name);
+  printf ("Tokenizing %s into space delimited tokens\n", file_name);
   char *token, *tokenized_args;
   /* Tokenize file name into command and arguments */
-  for (token = strtok_r (file_name, " ", &tokenized_args); token != NULL;
-        token = strtok_r (NULL, " ", &tokenized_args)) {
-    printf ("'%s'\n", token);
+  token = strtok_r (file_name, " ", &tokenized_args);
+  while (token != NULL) {
+    printf ("%s\n", token);
+    token = strtok_r (NULL, " ", &tokenized_args);
   }
+
+  printf ("Tokenized args contain %s", tokenized_args);
 
   /* Initialize interrupt frame and load executable. */
   memset (&if_, 0, sizeof if_);
