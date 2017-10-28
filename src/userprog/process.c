@@ -19,7 +19,7 @@
 #include "threads/vaddr.h"
 
 static thread_func start_process NO_RETURN;
-static bool load (const char *cmdline, void (**eip) (void), void **esp);
+static bool load (const char *cmdline, void (**eip) (void), void **esp, char **arguments, int arg_count);
 
 /* Starts a new thread running a user program loaded from
    FILENAME.  The new thread may be scheduled (and may even exit)
@@ -52,23 +52,32 @@ static void start_process (void *file_name_) {
   struct intr_frame if_;
   bool success;
 
-  printf ("Tokenizing %s into space delimited tokens\n", file_name);
-  char *token, *tokenized_args;
+  //printf ("Tokenizing %s into space delimited tokens\n", file_name);
+  char *arguments;
   /* Tokenize file name into command and arguments */
-  token = strtok_r (file_name, " ", &tokenized_args);
-  while (token != NULL) {
-    printf ("%s\n", token);
-    token = strtok_r (NULL, " ", &tokenized_args);
-  }
+  strtok_r (file_name, " ", &arguments);
 
-  printf ("Tokenized args contain %s", tokenized_args);
+  int arg_count = 0;
+  char *temp = strpbrk(arguments," ");
+  while(temp!=NULL){
+    arg_count++;
+    temp=strpbrk(temp+1," ");
+  }
+  arg_count++;
+
+  // while (token != NULL) {
+  //   printf ("%s\n", token);
+  //   token = strtok_r (NULL, " ", &tokenized_args);
+  // }
+
+  //printf ("Tokenized args contain %s", arguments);
 
   /* Initialize interrupt frame and load executable. */
   memset (&if_, 0, sizeof if_);
   if_.gs = if_.fs = if_.es = if_.ds = if_.ss = SEL_UDSEG;
   if_.cs = SEL_UCSEG;
   if_.eflags = FLAG_IF | FLAG_MBS;
-  success = load (file_name, &if_.eip, &if_.esp);
+  success = load (file_name, &if_.eip, &if_.esp,&arguments,arg_count);
 
   /* If load failed, quit. */
   palloc_free_page (file_name);
@@ -202,7 +211,7 @@ struct Elf32_Phdr
 #define PF_W 2          /* Writable. */
 #define PF_R 4          /* Readable. */
 
-static bool setup_stack (void **esp);
+static bool setup_stack (void **esp, const char *file_name, char **arguments, int arg_count);
 static bool validate_segment (const struct Elf32_Phdr *, struct file *);
 static bool load_segment (struct file *file, off_t ofs, uint8_t *upage,
                           uint32_t read_bytes, uint32_t zero_bytes,
@@ -213,7 +222,7 @@ static bool load_segment (struct file *file, off_t ofs, uint8_t *upage,
    and its initial stack pointer into *ESP.
    Returns true if successful, false otherwise. */
 bool
-load (const char *file_name, void (**eip) (void), void **esp)
+load (const char *file_name, void (**eip) (void), void **esp, char **arguments, int arg_count)
 {
   struct thread *t = thread_current ();
   struct Elf32_Ehdr ehdr;
@@ -309,7 +318,7 @@ load (const char *file_name, void (**eip) (void), void **esp)
     }
 
   /* Set up stack. */
-  if (!setup_stack (esp))
+  if (!setup_stack (esp,file_name,arguments,arg_count))
     goto done;
 
   /* Start address. */
@@ -433,10 +442,9 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
 
 /* Create a minimal stack by mapping a zeroed page at the top of
    user virtual memory. */
-static bool setup_stack (void **esp) {
+static bool setup_stack (void **esp, const char *file_name, char **arguments, int arg_count) {
   uint8_t *kpage;
   bool success = false;
-
   kpage = palloc_get_page (PAL_USER | PAL_ZERO);
   if (kpage != NULL) {
     success = install_page (((uint8_t *) PHYS_BASE) - PGSIZE, kpage, true);
@@ -446,6 +454,42 @@ static bool setup_stack (void **esp) {
       palloc_free_page (kpage);
     }
   }
+
+  //printf("\narg_count: %d",arg_count);
+  char **arg = malloc(arg_count);
+  char **argv = malloc(arg_count);
+
+  int index = arg_count-1;
+
+  char *token = strtok_r(NULL," ",arguments);
+  while(token != NULL){
+    arg[index]=token;
+    index--;
+    token = strtok_r(NULL," ",arguments);
+  }
+
+  for(int i=0; i<arg_count; i++){
+    *esp = *esp - (strlen(arg[i]));
+    memcpy(*esp, arg[i], strlen(arg[i]));
+    printf("\nelement pushed to stack: %s",arg[i]);
+    argv[i] = *esp;
+  }
+
+  //printf("\nPushing arguments completed");
+
+  *esp = *esp - (strlen(file_name));
+  memcpy(*esp, file_name, strlen(file_name));
+  printf("\nelement pushed to stack: %s\n",file_name);
+
+
+  // *esp = *esp -2;
+  // uint8_t sentinel = 0X00;
+  // memcpy(*esp, sentinel, 2);
+
+  // for(int i=0; i<arg_count; i++){
+  //   printf("\n%s", argv[i]);
+  // }
+
   return success;
 }
 
