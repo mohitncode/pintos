@@ -455,6 +455,8 @@ static bool setup_stack (void **esp, const char *file_name, char **arguments, in
     }
   }
 
+  int total_length = 0;
+
   //printf("\narg_count: %d",arg_count);
   char **arg = malloc(arg_count);
   char **argv = malloc(arg_count);
@@ -472,15 +474,20 @@ static bool setup_stack (void **esp, const char *file_name, char **arguments, in
     *esp = *esp - (strlen(arg[i])+1);
     memcpy(*esp, arg[i], strlen(arg[i])+1);
     printf("\nelement pushed to stack: %s",arg[i]);
+    total_length = total_length + strlen(arg[i])+1;
     argv[i] = *esp;
   }
 
   //printf("\nPushing arguments completed");
 
-  *esp = *esp - (strlen(file_name));
+  *esp = *esp - (strlen(file_name)+1);
   memcpy(*esp, file_name, strlen(file_name)+1);
   printf("\nelement pushed to stack: %s\n",file_name);
+  total_length = total_length + strlen(file_name)+1;
 
+  int space_to_fill = 4 - (total_length % 4);
+
+  printf("\nspace_to_fill: %d\n",space_to_fill);
 
   // *esp = *esp -2;
   // uint8_t sentinel = 0X00;
