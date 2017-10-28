@@ -469,8 +469,8 @@ static bool setup_stack (void **esp, const char *file_name, char **arguments, in
   }
 
   for(int i=0; i<arg_count; i++){
-    *esp = *esp - (strlen(arg[i]));
-    memcpy(*esp, arg[i], strlen(arg[i]));
+    *esp = *esp - (strlen(arg[i])+1);
+    memcpy(*esp, arg[i], strlen(arg[i])+1);
     printf("\nelement pushed to stack: %s",arg[i]);
     argv[i] = *esp;
   }
@@ -478,7 +478,7 @@ static bool setup_stack (void **esp, const char *file_name, char **arguments, in
   //printf("\nPushing arguments completed");
 
   *esp = *esp - (strlen(file_name));
-  memcpy(*esp, file_name, strlen(file_name));
+  memcpy(*esp, file_name, strlen(file_name)+1);
   printf("\nelement pushed to stack: %s\n",file_name);
 
 
