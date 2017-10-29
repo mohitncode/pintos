@@ -6,6 +6,10 @@
 
 static void syscall_handler (struct intr_frame *);
 
+/* Prototype for syscall methods */
+int sys_write (uint32_t fd, void *buf, uint32_t size);
+void sys_exit (int s);
+
 void
 syscall_init (void)
 {
@@ -14,14 +18,16 @@ syscall_init (void)
 
 static void syscall_handler (struct intr_frame *f UNUSED) {
   /* Cast interrupt frame's stack pointer to an integer pointer */
-  int *syscall_code = (int *) (f->esp);
-  printf ("System call invoked with syscall code %d!\n", *syscall_code);
-  switch (*syscall_code) {
+  uint32_t *esp = f->esp;
+
+  printf ("\nSystem call invoked with syscall code %d!\n", *esp);
+  switch (*esp) {
     case SYS_HALT:
       printf ("Invoking SYS_HALT");
       break;
     case SYS_EXIT:
       printf ("Invoking SYS_EXIT");
+      sys_exit (*(esp + 1));
       break;
     case SYS_EXEC:
       printf ("Invoking SYS_EXEC");
@@ -46,6 +52,7 @@ static void syscall_handler (struct intr_frame *f UNUSED) {
       break;
     case SYS_WRITE:
       printf ("Invoking SYS_WRITE");
+      sys_write (*(esp + 1), *(esp + 2), *(esp + 3));
       break;
     case SYS_SEEK:
       printf ("Invoking SYS_SEEK");
@@ -58,4 +65,27 @@ static void syscall_handler (struct intr_frame *f UNUSED) {
       break;
   }
   thread_exit ();
+}
+
+void sys_exit (int status) {
+  struct thread *t = thread_current ();
+  printf ("%s: exit(%d)\n", t->name, status);
+  thread_exit ();
+}
+
+int sys_write (uint32_t fd, void* buffer, uint32_t buffer_size) {
+  int status = 0;
+
+  switch (fd) {
+    case STDIN_FILENO:
+      // Cannot write to standard input
+      status = -1;
+      break;
+    case STDOUT_FILENO:
+      putbuf (buffer, buffer_size);
+      status = buffer_size;
+      break;
+  }
+
+  return status;
 }
