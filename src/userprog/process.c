@@ -42,6 +42,7 @@ process_execute (const char *file_name)
   tid = thread_create (file_name, PRI_DEFAULT, start_process, fn_copy);
   if (tid == TID_ERROR)
     palloc_free_page (fn_copy);
+
   return tid;
 }
 
@@ -449,55 +450,48 @@ static bool setup_stack (void **esp, const char *file_name, char **arguments, in
   if (kpage != NULL) {
     success = install_page (((uint8_t *) PHYS_BASE) - PGSIZE, kpage, true);
     if (success) {
-      *esp = PHYS_BASE;
+      *esp = PHYS_BASE - 12;
+      int total_length = 0;
+
+      //printf("\narg_count: %d",arg_count);
+      char **arg = malloc(arg_count);
+      void **argv = malloc(arg_count);
+
+      int index = arg_count-1;
+
+      char *token = strtok_r(NULL," ",arguments);
+      while(token != NULL){
+        arg[index]=token;
+        index--;
+        token = strtok_r(NULL," ",arguments);
+      }
+
+      arg[arg_count]=file_name;
+
+      for(int i=0; i<=arg_count; i++){
+        *esp = *esp - (strlen(arg[i])+1);
+        memcpy(*esp, arg[i], strlen(arg[i])+1);
+        printf("\nelement pushed to stack: %s",arg[i]);
+        total_length = total_length + strlen(arg[i])+1;
+        argv[i] = *esp;
+      }
+
+      int space_to_fill = 4 - (total_length % 4);
+
+      printf("\nspace_to_fill: %d\n",space_to_fill);
+
+      *esp = *esp - space_to_fill;
+
+      //insert addresses here
+
+      *esp = PHYS_BASE - 12;
+
+      return success;
+
     } else {
       palloc_free_page (kpage);
     }
   }
-
-  int total_length = 0;
-
-  //printf("\narg_count: %d",arg_count);
-  char **arg = malloc(arg_count);
-  char **argv = malloc(arg_count);
-
-  int index = arg_count-1;
-
-  char *token = strtok_r(NULL," ",arguments);
-  while(token != NULL){
-    arg[index]=token;
-    index--;
-    token = strtok_r(NULL," ",arguments);
-  }
-
-  for(int i=0; i<arg_count; i++){
-    *esp = *esp - (strlen(arg[i])+1);
-    memcpy(*esp, arg[i], strlen(arg[i])+1);
-    printf("\nelement pushed to stack: %s",arg[i]);
-    total_length = total_length + strlen(arg[i])+1;
-    argv[i] = *esp;
-  }
-
-  //printf("\nPushing arguments completed");
-
-  *esp = *esp - (strlen(file_name)+1);
-  memcpy(*esp, file_name, strlen(file_name)+1);
-  printf("\nelement pushed to stack: %s\n",file_name);
-  total_length = total_length + strlen(file_name)+1;
-
-  int space_to_fill = 4 - (total_length % 4);
-
-  printf("\nspace_to_fill: %d\n",space_to_fill);
-
-  // *esp = *esp -2;
-  // uint8_t sentinel = 0X00;
-  // memcpy(*esp, sentinel, 2);
-
-  // for(int i=0; i<arg_count; i++){
-  //   printf("\n%s", argv[i]);
-  // }
-
-  return success;
 }
 
 /* Adds a mapping from user virtual address UPAGE to kernel
