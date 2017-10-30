@@ -326,13 +326,11 @@ load (const char *file_name, void (**eip) (void), void **esp, char **arguments, 
   *eip = (void (*) (void)) ehdr.e_entry;
 
   success = true;
-
  done:
   /* We arrive here whether the load is successful or not. */
   file_close (file);
   return success;
 }
-
 /* load() helpers. */
 
 static bool install_page (void *upage, void *kpage, bool writable);
@@ -471,7 +469,7 @@ static bool setup_stack (void **esp, const char *file_name, char **arguments, in
         int decr_steps = strlen (arg[i]) + 1;
         *esp = *esp - decr_steps;
         memcpy(*esp, arg[i], decr_steps);
-        printf("\nElement %s pushed to stack stored at address %#08x", arg[i], (void *) *esp);
+        // printf("\nElement %s pushed to stack stored at address %#08x", arg[i], (void *) *esp);
         total_length += decr_steps;
         arg_addr[i] = *esp;
       }
@@ -479,7 +477,7 @@ static bool setup_stack (void **esp, const char *file_name, char **arguments, in
       /* Insert command name on stack */
       int file_name_len = strlen (file_name) + 1;
       *esp = *esp - file_name_len;
-      printf("\nCommand %s pushed to stack stored at address %#08x", file_name, (void *) *esp);
+      // printf("\nCommand %s pushed to stack stored at address %#08x", file_name, (void *) *esp);
       memcpy(*esp, file_name, file_name_len);
       arg_addr[arg_count + 1] = *esp;
       total_length += file_name_len;
@@ -489,7 +487,7 @@ static bool setup_stack (void **esp, const char *file_name, char **arguments, in
       int space_to_pad = 4 - (total_length % 4);
       uint32_t pad_byte = 0x0;
       uint32_t* pad_ptr = &pad_byte;
-      printf ("\nPadding %d bytes with NULL\n", space_to_pad);
+      // printf ("\nPadding %d bytes with NULL\n", space_to_pad);
       *esp = *esp - space_to_pad;
       memcpy (*esp, pad_ptr, space_to_pad);
 
@@ -499,7 +497,7 @@ static bool setup_stack (void **esp, const char *file_name, char **arguments, in
 
       /* Insert args addresses here */
       for (int i = 0; i < arg_count; i++) {
-        printf ("\nPushing memory address %#08x for argument %s\n", (void *) arg_addr[i], arg[i]);
+        // printf ("\nPushing memory address %#08x for argument %s\n", (void *) arg_addr[i], arg[i]);
         *esp = *esp - 4;
         int *arg_add_ptr = &arg_addr[i];
         memcpy (*esp, arg_add_ptr, 4);
@@ -509,6 +507,17 @@ static bool setup_stack (void **esp, const char *file_name, char **arguments, in
       *esp = *esp - 4;
       int *arg_add_ptr = &arg_addr[arg_count + 1];
       memcpy (*esp, arg_add_ptr, 4);
+
+      /* Push argc onto stack */
+
+      /* Push argv address onto stack */
+      int argv_addr = *esp;
+      *esp = *esp - 4;
+      memcpy (*esp, &argv_addr, 4);
+
+      /* Push dummy return address 0x00000000 onto stack */
+      *esp = *esp - 4;
+      memcpy (*esp, pad_ptr, 4);
 
       hex_dump (0, *esp, 160, true);
       return success;
