@@ -450,42 +450,67 @@ static bool setup_stack (void **esp, const char *file_name, char **arguments, in
   if (kpage != NULL) {
     success = install_page (((uint8_t *) PHYS_BASE) - PGSIZE, kpage, true);
     if (success) {
-      *esp = PHYS_BASE - 12;
+      *esp = PHYS_BASE;
       int total_length = 0;
 
-      //printf("\narg_count: %d",arg_count);
-      char **arg = malloc(arg_count);
-      void **argv = malloc(arg_count);
+      char **arg = malloc (arg_count);
+      int arg_addr[arg_count + 1];
 
-      int index = arg_count-1;
+      // TODO - Reduce reliance on arg_count as it will fail when command has multiple consecutive spaces
 
-      char *token = strtok_r(NULL," ",arguments);
-      while(token != NULL){
-        arg[index]=token;
+      int index = arg_count - 1;
+
+      char *token = strtok_r (NULL, " ", arguments);
+      while (token != NULL){
+        arg[index] = token;
         index--;
-        token = strtok_r(NULL," ",arguments);
+        token = strtok_r (NULL, " ", arguments);
       }
 
-      arg[arg_count]=file_name;
-
-      for(int i=0; i<=arg_count; i++){
-        *esp = *esp - (strlen(arg[i])+1);
-        memcpy(*esp, arg[i], strlen(arg[i])+1);
-        printf("\nelement pushed to stack: %s",arg[i]);
-        total_length = total_length + strlen(arg[i])+1;
-        argv[i] = *esp;
+      for (int i = 0; i < arg_count; i++) {
+        int decr_steps = strlen (arg[i]) + 1;
+        *esp = *esp - decr_steps;
+        memcpy(*esp, arg[i], decr_steps);
+        printf("\nElement %s pushed to stack stored at address %#08x", arg[i], (void *) *esp);
+        total_length += decr_steps;
+        arg_addr[i] = *esp;
       }
 
-      int space_to_fill = 4 - (total_length % 4);
+      /* Insert command name on stack */
+      int file_name_len = strlen (file_name) + 1;
+      *esp = *esp - file_name_len;
+      printf("\nCommand %s pushed to stack stored at address %#08x", file_name, (void *) *esp);
+      memcpy(*esp, file_name, file_name_len);
+      arg_addr[arg_count + 1] = *esp;
+      total_length += file_name_len;
 
-      printf("\nspace_to_fill: %d\n",space_to_fill);
 
-      *esp = *esp - space_to_fill;
+      /* Pad remaining spaces with null bytes */
+      int space_to_pad = 4 - (total_length % 4);
+      uint32_t pad_byte = 0x0;
+      uint32_t* pad_ptr = &pad_byte;
+      printf ("\nPadding %d bytes with NULL\n", space_to_pad);
+      *esp = *esp - space_to_pad;
+      memcpy (*esp, pad_ptr, space_to_pad);
 
-      //insert addresses here
+      /* Insert sentinel address */
+      *esp = *esp - 4;
+      memcpy (*esp, pad_ptr, 4);
 
-      *esp = PHYS_BASE - 12;
+      /* Insert args addresses here */
+      for (int i = 0; i < arg_count; i++) {
+        printf ("\nPushing memory address %#08x for argument %s\n", (void *) arg_addr[i], arg[i]);
+        *esp = *esp - 4;
+        int *arg_add_ptr = &arg_addr[i];
+        memcpy (*esp, arg_add_ptr, 4);
+      }
 
+      /* Insert command address here */
+      *esp = *esp - 4;
+      int *arg_add_ptr = &arg_addr[arg_count + 1];
+      memcpy (*esp, arg_add_ptr, 4);
+
+      hex_dump (0, *esp, 160, true);
       return success;
 
     } else {
