@@ -7,7 +7,7 @@
 static void syscall_handler (struct intr_frame *);
 
 /* Prototype for syscall methods */
-int sys_write (uint32_t fd, void *buf, uint32_t size);
+int sys_write (int fd, void *buf, int size);
 void sys_exit (int s);
 
 void
@@ -52,7 +52,7 @@ static void syscall_handler (struct intr_frame *f UNUSED) {
       break;
     case SYS_WRITE:
       printf ("Invoking SYS_WRITE");
-      sys_write (*(esp + 1), *(esp + 2), *(esp + 3));
+      f->eax = sys_write (*(esp + 1), (void *) *(esp + 2), *(esp + 3));
       break;
     case SYS_SEEK:
       printf ("Invoking SYS_SEEK");
@@ -73,19 +73,18 @@ void sys_exit (int status) {
   thread_exit ();
 }
 
-int sys_write (uint32_t fd, void* buffer, uint32_t buffer_size) {
+int sys_write (int fd, void* buffer, int buffer_size) {
   int status = 0;
+  printf ("\nTrying to write to fd %d with buffer address %p buffer size %d", fd, buffer, buffer_size);
+  printf ("\n String in buffer is %s", (char *) buffer);
 
-  switch (fd) {
-    case STDIN_FILENO:
-      // Cannot write to standard input
-      status = -1;
-      break;
-    case STDOUT_FILENO:
-      putbuf (buffer, buffer_size);
-      status = buffer_size;
-      break;
-  }
+  // if (fd == STDIN_FILENO) {
+    // Cannot write to standard input
+    // status = -1;
+  // } else if (fd == STDOUT_FILENO) {
+    putbuf (buffer, buffer_size);
+    status = buffer_size;
+  // }
 
   return status;
 }

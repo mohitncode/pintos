@@ -38,8 +38,11 @@ process_execute (const char *file_name)
     return TID_ERROR;
   strlcpy (fn_copy, file_name, PGSIZE);
 
+  char *save_ptr;
+  char *command = strtok_r (file_name, " ", &save_ptr);
+
   /* Create a new thread to execute FILE_NAME. */
-  tid = thread_create (file_name, PRI_DEFAULT, start_process, fn_copy);
+  tid = thread_create (command, PRI_DEFAULT, start_process, fn_copy);
   if (tid == TID_ERROR)
     palloc_free_page (fn_copy);
 
@@ -57,14 +60,14 @@ static void start_process (void *file_name_) {
   char *arguments;
   /* Tokenize file name into command and arguments */
   strtok_r (file_name, " ", &arguments);
+  printf ("Passing filename %s to load", file_name);
 
-  int arg_count = 0;
-  char *temp = strpbrk(arguments," ");
-  while(temp!=NULL){
+  int arg_count = 1;
+  char *temp = strpbrk (arguments, " ");
+  while (temp != NULL){
     arg_count++;
-    temp=strpbrk(temp+1," ");
+    temp = strpbrk (temp + 1, " ");
   }
-  arg_count++;
 
   // while (token != NULL) {
   //   printf ("%s\n", token);
@@ -78,7 +81,7 @@ static void start_process (void *file_name_) {
   if_.gs = if_.fs = if_.es = if_.ds = if_.ss = SEL_UDSEG;
   if_.cs = SEL_UCSEG;
   if_.eflags = FLAG_IF | FLAG_MBS;
-  success = load (file_name, &if_.eip, &if_.esp,&arguments,arg_count);
+  success = load (file_name, &if_.eip, &if_.esp, &arguments, arg_count);
 
   /* If load failed, quit. */
   palloc_free_page (file_name);
@@ -459,7 +462,7 @@ static bool setup_stack (void **esp, const char *file_name, char **arguments, in
       int index = arg_count - 1;
 
       char *token = strtok_r (NULL, " ", arguments);
-      while (token != NULL){
+      while (token != NULL) {
         arg[index] = token;
         index--;
         token = strtok_r (NULL, " ", arguments);
@@ -482,12 +485,11 @@ static bool setup_stack (void **esp, const char *file_name, char **arguments, in
       arg_addr[arg_count + 1] = *esp;
       total_length += file_name_len;
 
-
       /* Pad remaining spaces with null bytes */
       int space_to_pad = 4 - (total_length % 4);
       uint32_t pad_byte = 0x0;
       uint32_t* pad_ptr = &pad_byte;
-      // printf ("\nPadding %d bytes with NULL\n", space_to_pad);
+      // printf ("\nPadding %d bytes with NULL", space_to_pad);
       *esp = *esp - space_to_pad;
       memcpy (*esp, pad_ptr, space_to_pad);
 
@@ -497,7 +499,7 @@ static bool setup_stack (void **esp, const char *file_name, char **arguments, in
 
       /* Insert args addresses here */
       for (int i = 0; i < arg_count; i++) {
-        // printf ("\nPushing memory address %#08x for argument %s\n", (void *) arg_addr[i], arg[i]);
+        // printf ("\nPushing memory address %#08x for argument %s", (void *) arg_addr[i], arg[i]);
         *esp = *esp - 4;
         int *arg_add_ptr = &arg_addr[i];
         memcpy (*esp, arg_add_ptr, 4);
@@ -506,25 +508,31 @@ static bool setup_stack (void **esp, const char *file_name, char **arguments, in
       /* Insert command address here */
       *esp = *esp - 4;
       int *arg_add_ptr = &arg_addr[arg_count + 1];
+      // printf ("\nPushing memory address %#08x for command %s", (void *) arg_addr[arg_count + 1], file_name);
       memcpy (*esp, arg_add_ptr, 4);
-
-      /* Push argc onto stack */
 
       /* Push argv address onto stack */
       int argv_addr = *esp;
       *esp = *esp - 4;
       memcpy (*esp, &argv_addr, 4);
 
+      /* Push argc onto stack */
+      *esp = *esp - 4;
+      int argc = arg_count + 1;
+      // printf ("\nPushing argc = %d at address %p", argc, (void *) &argc);
+      memcpy (*esp, &argc, 4);
+
       /* Push dummy return address 0x00000000 onto stack */
       *esp = *esp - 4;
       memcpy (*esp, pad_ptr, 4);
 
+      printf ("\nHexdump below\n");
       hex_dump (0, *esp, 160, true);
-      return success;
 
     } else {
       palloc_free_page (kpage);
     }
+    return success;
   }
 }
 
