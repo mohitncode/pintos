@@ -16,55 +16,41 @@ syscall_init (void)
   intr_register_int (0x30, 3, INTR_ON, syscall_handler, "syscall");
 }
 
-static void syscall_handler (struct intr_frame *f UNUSED) {
+static void syscall_handler (struct intr_frame *f ) {
   /* Cast interrupt frame's stack pointer to an integer pointer */
-  uint32_t *esp = f->esp;
-
-  printf ("\nSystem call invoked with syscall code %d!\n", *esp);
-  switch (*esp) {
+  
+    int32_t *es=(int32_t *)f->esp;
+    switch (*es) {
     case SYS_HALT:
-      printf ("Invoking SYS_HALT");
+      shutdown_power_off ();
       break;
     case SYS_EXIT:
-      printf ("Invoking SYS_EXIT");
-      sys_exit (*(esp + 1));
+      sys_exit (*(es + 1));
       break;
     case SYS_EXEC:
-      printf ("Invoking SYS_EXEC");
       break;
     case SYS_WAIT:
-      printf ("Invoking SYS_WAIT");
       break;
     case SYS_CREATE:
-      printf ("Invoking SYS_CREATE");
       break;
     case SYS_REMOVE:
-      printf ("Invoking SYS_REMOVE");
       break;
     case SYS_OPEN:
-      printf ("Invoking SYS_OPEN");
       break;
     case SYS_FILESIZE:
-      printf ("Invoking SYS_FILESIZE");
       break;
     case SYS_READ:
-      printf ("Invoking SYS_READ");
       break;
     case SYS_WRITE:
-      printf ("Invoking SYS_WRITE");
-      f->eax = sys_write (*(esp + 1), (void *) *(esp + 2), *(esp + 3));
+      f->eax = sys_write ((int32_t)f->esp+1, (void *)f->esp+2,(int32_t)f->esp+3);
       break;
     case SYS_SEEK:
-      printf ("Invoking SYS_SEEK");
       break;
     case SYS_TELL:
-      printf ("Invoking SYS_TELL");
       break;
     case SYS_CLOSE:
-      printf ("Invoking SYS_CLOSE");
       break;
   }
-  thread_exit ();
 }
 
 void sys_exit (int status) {
@@ -75,16 +61,15 @@ void sys_exit (int status) {
 
 int sys_write (int fd, void* buffer, int buffer_size) {
   int status = 0;
-  printf ("\nTrying to write to fd %d with buffer address %p buffer size %d", fd, buffer, buffer_size);
-  printf ("\n String in buffer is %s", (char *) buffer);
+  //printf ("\nTrying to write to fd %d with buffer address %p buffer size %d", fd, buffer, buffer_size);
 
-  // if (fd == STDIN_FILENO) {
+   if (fd == STDIN_FILENO) {
     // Cannot write to standard input
-    // status = -1;
-  // } else if (fd == STDOUT_FILENO) {
-    putbuf (buffer, buffer_size);
+     status = -1;
+   } else if (fd == STDOUT_FILENO) {
+    putbuf (*(int *)buffer, buffer_size);
     status = buffer_size;
-  // }
+   }
 
   return status;
 }
