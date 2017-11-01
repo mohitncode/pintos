@@ -1,9 +1,10 @@
+#include <stdlib.h>
 #include "userprog/process.h"
+
 #include <debug.h>
 #include <inttypes.h>
 #include <round.h>
 #include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
 #include "userprog/gdt.h"
 #include "userprog/pagedir.h"
@@ -61,7 +62,7 @@ static void start_process (void *file_name_) {
   char *save_ptr, *token;
   token = strtok_r (file_name, " ", &save_ptr);
   int argc = 0;
-  char **argv = malloc (MAX_ARGS * sizeof (char *));
+  char **argv= malloc (MAX_ARGS * sizeof (char *));
   *argv = token;
 
   while (token != NULL) {
@@ -105,9 +106,21 @@ static void start_process (void *file_name_) {
 
    This function will be implemented in problem 2-2.  For now, it
    does nothing. */
-int process_wait (tid_t child_tid UNUSED) {
+int process_wait (tid_t child_tid) {
+
+ /* struct thread *t= thread_current();
+  if(child_tid==TID_ERROR)
+  {
+    return -1;
+  }
+  else
+  {
+      struct elem=list_tail(&t->child);
+
+  }*/
   while (1);
 }
+
 
 /* Free the current process's resources. */
 void
@@ -149,7 +162,6 @@ process_activate (void)
      interrupts. */
   tss_update ();
 }
-
 /* We load ELF binaries.  The following definitions are taken
    from the ELF specification, [ELF1], more-or-less verbatim.  */
 
@@ -463,7 +475,7 @@ static bool setup_stack (void **esp, int argc, char **argv) {
         memcpy(*esp, *argv, decr_steps);
         // printf("\nElement %s pushed to stack stored at address %p", *argv, (void *) *esp);
         total_length += decr_steps;
-        arg_addr[index] = *esp;
+        arg_addr[index] = (int) *esp;
         index++;
       }
 
@@ -489,7 +501,7 @@ static bool setup_stack (void **esp, int argc, char **argv) {
       }
 
       /* Push argv address onto stack */
-      int argv_addr = *esp;
+      int argv_addr =(int) *esp;
       *esp = *esp - 4;
       memcpy (*esp, &argv_addr, 4);
 
@@ -504,12 +516,12 @@ static bool setup_stack (void **esp, int argc, char **argv) {
 
       // printf ("\nHexdump below\n");
       hex_dump (*esp, *esp, 100, true);
-
     } else {
       palloc_free_page (kpage);
     }
-    return success;
+
   }
+  return success;
 }
 
 /* Adds a mapping from user virtual address UPAGE to kernel
