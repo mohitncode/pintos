@@ -40,8 +40,11 @@ process_execute (const char *file_name)
     return TID_ERROR;
   strlcpy (fn_copy, file_name, PGSIZE);
 
+  char *save_ptr;
+  char *command = strtok_r (file_name, " ", &save_ptr);
+
   /* Create a new thread to execute FILE_NAME. */
-  tid = thread_create (file_name, PRI_DEFAULT, start_process, fn_copy);
+  tid = thread_create (command, PRI_DEFAULT, start_process, fn_copy);
   if (tid == TID_ERROR)
     palloc_free_page (fn_copy);
 
@@ -464,17 +467,18 @@ static bool setup_stack (void **esp, int argc, char **argv) {
         index++;
       }
 
-      /* Pad remaining spaces with null bytes */
-      int space_to_pad = 4 - (total_length % 4);
-      uint32_t pad_byte = 0x0;
-      uint32_t* pad_ptr = &pad_byte;
-      // printf ("\nPadding %d bytes with NULL", space_to_pad);
-      *esp = *esp - space_to_pad;
-      memcpy (*esp, pad_ptr, space_to_pad);
+      int pad_byte = 0;
+      /* Pad remaining spaces with null bytes IF word alignment is required */
+      if (0 != total_length % 4) {
+        int space_to_pad = 4 - (total_length % 4);
+        // printf ("\nPadding %d bytes with NULL", space_to_pad);
+        *esp = *esp - space_to_pad;
+        memcpy (*esp, &pad_byte, space_to_pad);
+      }
 
       /* Insert sentinel address */
       *esp = *esp - 4;
-      memcpy (*esp, pad_ptr, 4);
+      memcpy (*esp, &pad_byte, 4);
 
       /* Insert command and args addresses here */
       for (int i = 0; i < argc; i++) {
@@ -496,10 +500,10 @@ static bool setup_stack (void **esp, int argc, char **argv) {
 
       /* Push dummy return address 0x00000000 onto stack */
       *esp = *esp - 4;
-      memcpy (*esp, pad_ptr, 4);
+      memcpy (*esp, &pad_byte, 4);
 
       // printf ("\nHexdump below\n");
-      hex_dump (0, *esp, 160, true);
+      hex_dump (*esp, *esp, 100, true);
 
     } else {
       palloc_free_page (kpage);
