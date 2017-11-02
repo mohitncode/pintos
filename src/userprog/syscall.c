@@ -1,14 +1,19 @@
+#include "devices/shutdown.h"
 #include "userprog/syscall.h"
+#include "userprog/pagedir.h"
 #include <stdio.h>
 #include <syscall-nr.h>
 #include "threads/interrupt.h"
 #include "threads/thread.h"
+#include "threads/thread.h"
+#include "threads/vaddr.h"
 
 static void syscall_handler (struct intr_frame *);
 
 /* Prototype for syscall methods */
 int sys_write (int fd, void *buf, int size);
 void sys_exit (int s);
+bool is_valid_ptr (void* uptr);
 
 void
 syscall_init (void)
@@ -18,14 +23,15 @@ syscall_init (void)
 
 static void syscall_handler (struct intr_frame *f ) {
   /* Cast interrupt frame's stack pointer to an integer pointer */
-  
-    int32_t *es=(int32_t *)f->esp;
-    switch (*es) {
+
+  int32_t *esp = f->esp;
+
+  switch (*esp) {
     case SYS_HALT:
       shutdown_power_off ();
       break;
     case SYS_EXIT:
-      sys_exit (*(es + 1));
+      sys_exit (*(esp + 1));
       break;
     case SYS_EXEC:
       break;
@@ -42,7 +48,7 @@ static void syscall_handler (struct intr_frame *f ) {
     case SYS_READ:
       break;
     case SYS_WRITE:
-      f->eax = sys_write ((int32_t)f->esp+1, (void *)f->esp+2,(int32_t)f->esp+3);
+      f->eax = sys_write (*(esp + 1), (void *) *(esp + 2), *(esp + 3));
       break;
     case SYS_SEEK:
       break;
@@ -61,15 +67,24 @@ void sys_exit (int status) {
 
 int sys_write (int fd, void* buffer, int buffer_size) {
   int status = 0;
-  //printf ("\nTrying to write to fd %d with buffer address %p buffer size %d", fd, buffer, buffer_size);
 
-   if (fd == STDIN_FILENO) {
-    // Cannot write to standard input
-     status = -1;
-   } else if (fd == STDOUT_FILENO) {
-    putbuf (*(int *)buffer, buffer_size);
-    status = buffer_size;
-   }
+  if (is_valid_ptr (buffer) && is_valid_ptr (buffer + buffer_size)) {
+    if (fd == STDIN_FILENO) {
+      // Cannot write to standard input
+      status = -1;
+    } else if (fd == STDOUT_FILENO) {
+     putbuf ((char *) buffer, buffer_size);
+     status = buffer_size;
+    }
+  } else {
+    printf ("Calling sys_exit with -1");
+    sys_exit (-1);
+  }
 
   return status;
+}
+
+bool is_valid_ptr (void* uptr) {
+  return (is_user_vaddr (uptr)
+    && pagedir_get_page (thread_current () ->pagedir, uptr) != NULL);
 }

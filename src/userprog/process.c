@@ -15,6 +15,7 @@
 #include "threads/flags.h"
 #include "threads/init.h"
 #include "threads/interrupt.h"
+#include "threads/malloc.h"
 #include "threads/palloc.h"
 #include "threads/thread.h"
 #include "threads/vaddr.h"
@@ -479,18 +480,17 @@ static bool setup_stack (void **esp, int argc, char **argv) {
         index++;
       }
 
-      int pad_byte = 0;
+      int space_to_pad = 4 - (total_length % 4);
       /* Pad remaining spaces with null bytes IF word alignment is required */
       if (0 != total_length % 4) {
-        int space_to_pad = 4 - (total_length % 4);
         // printf ("\nPadding %d bytes with NULL", space_to_pad);
         *esp = *esp - space_to_pad;
-        memcpy (*esp, &pad_byte, space_to_pad);
+        memset (*esp, 0, space_to_pad);
       }
 
       /* Insert sentinel address */
       *esp = *esp - 4;
-      memcpy (*esp, &pad_byte, 4);
+      memset (*esp, 0, space_to_pad);
 
       /* Insert command and args addresses here */
       for (int i = 0; i < argc; i++) {
@@ -501,7 +501,7 @@ static bool setup_stack (void **esp, int argc, char **argv) {
       }
 
       /* Push argv address onto stack */
-      int argv_addr =(int) *esp;
+      int argv_addr = *(unsigned *) esp;
       *esp = *esp - 4;
       memcpy (*esp, &argv_addr, 4);
 
@@ -512,10 +512,10 @@ static bool setup_stack (void **esp, int argc, char **argv) {
 
       /* Push dummy return address 0x00000000 onto stack */
       *esp = *esp - 4;
-      memcpy (*esp, &pad_byte, 4);
+      memset (*esp, 0, 4);
 
-      // printf ("\nHexdump below\n");
-      hex_dump (*esp, *esp, 100, true);
+      // printf ("\nInside setup stack\n");
+      // hex_dump ((uintptr_t) *esp, *esp, 100, true);
     } else {
       palloc_free_page (kpage);
     }
