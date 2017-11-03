@@ -7,6 +7,7 @@
 #include "threads/thread.h"
 #include "threads/synch.h"
 #include "threads/vaddr.h"
+#include "filesys/filesys.h"
 
 static void syscall_handler (struct intr_frame *);
 
@@ -14,6 +15,7 @@ static void syscall_handler (struct intr_frame *);
 int sys_write (int fd, void *buf, int size);
 void sys_exit (int s);
 bool is_valid_ptr (void* uptr);
+int create(const char *name, int initial_size);
 
 void
 syscall_init (void)
@@ -38,7 +40,8 @@ static void syscall_handler (struct intr_frame *f ) {
     case SYS_WAIT:
       break;
     case SYS_CREATE:
-      break;
+       f->eax = create((char *) *(esp + 1), *(esp + 2));
+       break;
     case SYS_REMOVE:
       break;
     case SYS_OPEN:
@@ -105,4 +108,8 @@ int sys_write (int fd, void* buffer, int buffer_size) {
 bool is_valid_ptr (void* uptr) {
   return (is_user_vaddr (uptr)
     && pagedir_get_page (thread_current () ->pagedir, uptr) != NULL);
+}
+
+int create(const char *name, int initial_size){
+  return  filesys_create(name,initial_size);
 }
