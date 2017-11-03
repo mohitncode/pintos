@@ -17,6 +17,7 @@
 #include "threads/interrupt.h"
 #include "threads/malloc.h"
 #include "threads/palloc.h"
+#include "threads/synch.h"
 #include "threads/thread.h"
 #include "threads/vaddr.h"
 
@@ -47,8 +48,20 @@ process_execute (const char *file_name)
 
   /* Create a new thread to execute FILE_NAME. */
   tid = thread_create (command, PRI_DEFAULT, start_process, fn_copy);
-  if (tid == TID_ERROR)
+  if (tid == TID_ERROR) {
     palloc_free_page (fn_copy);
+  } else {
+    struct thread *t = thread_current ();
+    struct child_thread_status *child;
+    child = calloc (1, sizeof *child);
+    child->tid = tid;
+    child->has_exited = false;
+
+    sema_init (&child->wait_sema, 0);
+
+    list_push_back (&t->child_threads, &child->child_elem);
+    // printf ("Size of child_threads is %d\n", list_size (&t->child_threads));
+  }
 
   return tid;
 }
@@ -83,6 +96,11 @@ static void start_process (void *file_name_) {
   if_.eflags = FLAG_IF | FLAG_MBS;
   success = load (file_name, &if_.eip, &if_.esp, argc, argv);
 
+  struct thread *t = thread_current ();
+  if (t->parent) {
+    // TODO
+  }
+
   /* If load failed, quit. */
   palloc_free_page (file_name);
   if (!success)
@@ -108,44 +126,60 @@ static void start_process (void *file_name_) {
    This function will be implemented in problem 2-2.  For now, it
    does nothing. */
 int process_wait (tid_t child_tid) {
+  int status = 0;
+  if (child_tid == TID_ERROR) {
+    status = TID_ERROR;
+  } else {
+    struct list children = thread_current ()->child_threads;
+    struct list_elem *e;
 
- /* struct thread *t= thread_current();
-  if(child_tid==TID_ERROR)
-  {
-    return -1;
+    for (e = list_begin (&children); e != list_end (&children); e = list_next (e)) {
+      struct child_thread_status *c = list_entry (e, struct child_thread_status, child_elem);
+
+      if (c->tid == child_tid) {
+        sema_down (&c->wait_sema);
+        // printf ("\nSemaphore is now at 0\n");
+
+        if (!c->has_exited) {
+          status = -1;
+        } else {
+          status = c->exit_code;
+          break;
+        }
+      } else {
+        status = -1;
+      }
+    }
   }
-  else
-  {
-      struct elem=list_tail(&t->child);
 
-  }*/
-  while (1);
+  return status;
 }
 
 
 /* Free the current process's resources. */
-void
-process_exit (void)
-{
+void process_exit (void) {
   struct thread *cur = thread_current ();
   uint32_t *pd;
 
   /* Destroy the current process's page directory and switch back
      to the kernel-only page directory. */
   pd = cur->pagedir;
-  if (pd != NULL)
-    {
-      /* Correct ordering here is crucial.  We must set
-         cur->pagedir to NULL before switching page directories,
-         so that a timer interrupt can't switch back to the
-         process page directory.  We must activate the base page
-         directory before destroying the process's page
-         directory, or our active page directory will be one
-         that's been freed (and cleared). */
-      cur->pagedir = NULL;
-      pagedir_activate (NULL);
-      pagedir_destroy (pd);
-    }
+  if (pd != NULL) {
+    /* Correct ordering here is crucial.  We must set
+       cur->pagedir to NULL before switching page directories,
+       so that a timer interrupt can't switch back to the
+       process page directory.  We must activate the base page
+       directory before destroying the process's page
+       directory, or our active page directory will be one
+       that's been freed (and cleared). */
+    cur->pagedir = NULL;
+    pagedir_activate (NULL);
+    pagedir_destroy (pd);
+  }
+
+  // for (e = list_begin (&children); e != list_end (&children); e = list_next (e)) {
+    // list_remove (e);
+  // }
 }
 
 /* Sets up the CPU for running user code in the current

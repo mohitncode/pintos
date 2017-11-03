@@ -5,7 +5,7 @@
 #include <syscall-nr.h>
 #include "threads/interrupt.h"
 #include "threads/thread.h"
-#include "threads/thread.h"
+#include "threads/synch.h"
 #include "threads/vaddr.h"
 
 static void syscall_handler (struct intr_frame *);
@@ -61,6 +61,24 @@ static void syscall_handler (struct intr_frame *f ) {
 
 void sys_exit (int status) {
   struct thread *t = thread_current ();
+  struct list children = t->parent->child_threads;
+  struct list_elem *e;
+  /*
+    Look for current ID in parent's list of child threads and set it's
+    exit status in the list element's child structure
+  */
+  for (e = list_begin (&children); e != list_end (&children); e = list_next (e)) {
+    struct child_thread_status *c = list_entry (e, struct child_thread_status, child_elem);
+
+    /* If child's ID is equal to current thread's ID */
+    if (c->tid == t->tid) {
+      c->has_exited = true;
+      c->exit_code = status;
+      sema_up (&c->wait_sema);
+      break;
+    }
+  }
+
   printf ("%s: exit(%d)\n", t->name, status);
   thread_exit ();
 }
@@ -73,7 +91,7 @@ int sys_write (int fd, void* buffer, int buffer_size) {
       // Cannot write to standard input
       status = -1;
     } else if (fd == STDOUT_FILENO) {
-     putbuf ((char *) buffer, buffer_size);
+     putbuf (buffer, buffer_size);
      status = buffer_size;
     }
   } else {
