@@ -30,6 +30,7 @@ int validate_ptr (void* uptr);
 int sys_create(const char *name, int initial_size);
 int sys_open (const char *name);
 int sys_read (int fd, void *buffer, off_t size);
+int sys_filesize (int fd);
 
 void syscall_init (void) {
   intr_register_int (0x30, 3, INTR_ON, syscall_handler, "syscall");
@@ -58,9 +59,10 @@ static void syscall_handler (struct intr_frame *f ) {
     case SYS_REMOVE:
       break;
     case SYS_OPEN:
-       f->eax = sys_open ((char *) *(esp + 1));
+      f->eax = sys_open ((char *) *(esp + 1));
       break;
     case SYS_FILESIZE:
+      f->eax = sys_filesize (*(esp + 1));
       break;
     case SYS_READ:
       f->eax = sys_read (*(esp + 1), (void *) *(esp + 2), *(esp + 3));
@@ -130,14 +132,21 @@ int validate_ptr (void* uptr) {
 
 int sys_create (const char *name, int initial_size) {
   int status = -1;
-  lock_acquire (&filesystem_lock);
-  status = filesys_create (name, initial_size);
-  lock_release (&filesystem_lock);
+  if (name != NULL) {
+    lock_acquire (&filesystem_lock);
+    status = filesys_create (name, initial_size);
+    lock_release (&filesystem_lock);
+  }
   return status;
 }
 
 int sys_open (const char *name){
   int status = -1;
+
+  if (NULL == name) {
+    return status;
+  }
+
   lock_acquire (&filesystem_lock);
   struct file *f = filesys_open (name);
   lock_release (&filesystem_lock);
@@ -157,25 +166,44 @@ int sys_open (const char *name){
   return status;
 }
 
+int sys_filesize (int fd) {
+  int status = -1;
+  struct list open_files = thread_current ()->files;
+  struct list_elem *e;
 
-int sys_read (int fd, void *buffer, off_t size) {
+  for (e = list_begin (&open_files); e != list_end (&open_files); e = list_next (e)) {
+    struct file_descriptor *f = list_entry (e, struct file_descriptor, file_elem);
+
+    /* If child's ID is equal to current thread's ID */
+    if (f->fid == fd) {
+      // printf ("\nFound file with FID %d!\n", fd);
+      lock_acquire (&filesystem_lock);
+      status = file_length (f->file_ref);
+      // printf ("\nRead file successfully with status %d!\n", status);
+      lock_release (&filesystem_lock);
+      break;
+    }
+  }
+
+  return status;
+}
+
+int sys_read (int fd, void *buffer, int size) {
   int status = -1;
   struct list open_files = thread_current ()->files;
   struct list_elem *e;
 
   if (validate_ptr (buffer) && validate_ptr (buffer + size)) {
     // printf ("\nTrying to open file with FD %d\n", fd);
+    lock_acquire (&filesystem_lock);
     if (fd == STDIN_FILENO) {
-      int *temp;
-      int counter = size;
-
-      lock_acquire (&filesystem_lock);
-      while (counter-- && (*temp = input_getc()) != 0) {
-        temp++;
+      int read_bytes = 0;
+      while (input_getc() != 0) {
+        read_bytes++;
       }
-      lock_release (&filesystem_lock);
+      // printf ("Read bytes = %d and size = %d\n", read_bytes, size);
 
-      status = size;
+      status = read_bytes;
     } else if (fd == STDOUT_FILENO) {
       status = -1;
     } else {
@@ -185,14 +213,13 @@ int sys_read (int fd, void *buffer, off_t size) {
         /* If child's ID is equal to current thread's ID */
         if (f->fid == fd) {
           // printf ("\nFound file with FID %d!\n", fd);
-          lock_acquire (&filesystem_lock);
           status = file_read (f->file_ref, buffer, size);
           // printf ("\nRead file successfully with status %d!\n", status);
-          lock_release (&filesystem_lock);
           break;
         }
       }
     }
+    lock_release (&filesystem_lock);
   }
 
   return status;
