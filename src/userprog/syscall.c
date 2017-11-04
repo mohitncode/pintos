@@ -1,28 +1,39 @@
+#include "filesys/file.h"
+#include "filesys/filesys.h"
+#include "devices/input.h"
 #include "devices/shutdown.h"
 #include "userprog/syscall.h"
 #include "userprog/pagedir.h"
 #include <stdio.h>
 #include <syscall-nr.h>
 #include "threads/interrupt.h"
-#include "threads/thread.h"
+#include "threads/malloc.h"
 #include "threads/synch.h"
+#include "threads/thread.h"
 #include "threads/vaddr.h"
-#include "filesys/filesys.h"
+
+struct lock filesystem_lock;
+
+/* File descriptor structure */
+struct file_descriptor {
+  int fid;
+  struct file *file_ref;
+  struct list_elem file_elem;
+};
 
 static void syscall_handler (struct intr_frame *);
-static int fd_count = 2;
 
 /* Prototype for syscall methods */
 int sys_write (int fd, void *buf, int size);
 void sys_exit (int s);
-bool is_valid_ptr (void* uptr);
-int create(const char *name, int initial_size);
-int open (const char *name);
+int validate_ptr (void* uptr);
+int sys_create(const char *name, int initial_size);
+int sys_open (const char *name);
+int sys_read (int fd, void *buffer, off_t size);
 
-void
-syscall_init (void)
-{
+void syscall_init (void) {
   intr_register_int (0x30, 3, INTR_ON, syscall_handler, "syscall");
+  lock_init (&filesystem_lock);
 }
 
 static void syscall_handler (struct intr_frame *f ) {
@@ -42,16 +53,17 @@ static void syscall_handler (struct intr_frame *f ) {
     case SYS_WAIT:
       break;
     case SYS_CREATE:
-       f->eax = create((char *) *(esp + 1), *(esp + 2));
+       f->eax = sys_create ((char *) *(esp + 1), *(esp + 2));
        break;
     case SYS_REMOVE:
       break;
     case SYS_OPEN:
-       f->eax = open ((char *) *(esp + 1));
+       f->eax = sys_open ((char *) *(esp + 1));
       break;
     case SYS_FILESIZE:
       break;
     case SYS_READ:
+      f->eax = sys_read (*(esp + 1), (void *) *(esp + 2), *(esp + 3));
       break;
     case SYS_WRITE:
       f->eax = sys_write (*(esp + 1), (void *) *(esp + 2), *(esp + 3));
@@ -90,39 +102,94 @@ void sys_exit (int status) {
 }
 
 int sys_write (int fd, void* buffer, int buffer_size) {
-  int status = 0;
+  int status = -1;
 
-  if (is_valid_ptr (buffer) && is_valid_ptr (buffer + buffer_size)) {
+  if (validate_ptr (buffer) && validate_ptr (buffer + buffer_size)) {
     if (fd == STDIN_FILENO) {
       // Cannot write to standard input
       status = -1;
     } else if (fd == STDOUT_FILENO) {
-     putbuf (buffer, buffer_size);
-     status = buffer_size;
+      lock_acquire (&filesystem_lock);
+      putbuf (buffer, buffer_size);
+      status = buffer_size;
+      lock_release (&filesystem_lock);
     }
-  } else {
-    printf ("Calling sys_exit with -1");
-    sys_exit (-1);
   }
 
   return status;
 }
 
-bool is_valid_ptr (void* uptr) {
-  return (is_user_vaddr (uptr)
-    && pagedir_get_page (thread_current () ->pagedir, uptr) != NULL);
-}
-
-int create(const char *name, int initial_size){
-  return  filesys_create(name,initial_size);
-}
-
-int open (const char *name){
-  int status = -1;
-  struct file *f = filesys_open(name);
-  if(f != NULL){
-    status = fd_count;
-    fd_count++;
+int validate_ptr (void* uptr) {
+  if (is_user_vaddr (uptr)
+    && pagedir_get_page (thread_current () ->pagedir, uptr) != NULL) {
+    return 1;
+  } else {
+    return 0;
   }
+}
+
+int sys_create (const char *name, int initial_size) {
+  return filesys_create (name, initial_size);
+}
+
+int sys_open (const char *name){
+  int status = -1;
+  lock_acquire (&filesystem_lock);
+  struct file *f = filesys_open (name);
+  lock_release (&filesystem_lock);
+
+  if (f != NULL) {
+    struct thread *t = thread_current ();
+    struct file_descriptor *fd;
+    fd = calloc (1, sizeof *fd);
+
+    fd->fid = t->next_fd;
+    t->next_fd++;
+    fd->file_ref = f;
+    list_push_back (&t->files , &fd->file_elem);
+    status = fd->fid;
+  }
+
+  return status;
+}
+
+
+int sys_read (int fd, void *buffer, off_t size) {
+  int status = -1;
+  struct list open_files = thread_current ()->files;
+  struct list_elem *e;
+
+  if (validate_ptr (buffer) && validate_ptr (buffer + size)) {
+    // printf ("\nTrying to open file with FD %d\n", fd);
+    if (fd == STDIN_FILENO) {
+      int *temp;
+      int counter = size;
+
+      lock_acquire (&filesystem_lock);
+      while (counter-- && (*temp = input_getc()) != 0) {
+        temp++;
+      }
+      lock_release (&filesystem_lock);
+
+      status = size;
+    } else if (fd == STDOUT_FILENO) {
+      status = -1;
+    } else {
+      for (e = list_begin (&open_files); e != list_end (&open_files); e = list_next (e)) {
+        struct file_descriptor *f = list_entry (e, struct file_descriptor, file_elem);
+
+        /* If child's ID is equal to current thread's ID */
+        if (f->fid == fd) {
+          // printf ("\nFound file with FID %d!\n", fd);
+          lock_acquire (&filesystem_lock);
+          status = file_read (f->file_ref, buffer, size);
+          // printf ("\nRead file successfully with status %d!\n", status);
+          lock_release (&filesystem_lock);
+          break;
+        }
+      }
+    }
+  }
+
   return status;
 }

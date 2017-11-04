@@ -475,6 +475,10 @@ init_thread (struct thread *t, const char *name, int priority)
 
   /* Initialize child list */
   list_init (&t->child_threads);
+  list_init (&t->files);
+
+  /* Initialize each process's available FD to 2 as 0 and 1 are reserved */
+  t->next_fd = 2;
 }
 
 /* Allocates a SIZE-byte frame at the top of thread T's stack and

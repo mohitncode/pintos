@@ -113,6 +113,8 @@ struct thread {
   /* Variables for project 2 */
   struct thread *parent;
   struct list child_threads;
+  struct list files;                  /* List of files opened by this process */
+  int next_fd;                        /* Variable to store the next available FD for thread */
 };
 
 /* If false (default), use round-robin scheduler.
