@@ -129,7 +129,11 @@ int validate_ptr (void* uptr) {
 }
 
 int sys_create (const char *name, int initial_size) {
-  return filesys_create (name, initial_size);
+  int status = -1;
+  lock_acquire (&filesystem_lock);
+  status = filesys_create (name, initial_size);
+  lock_release (&filesystem_lock);
+  return status;
 }
 
 int sys_open (const char *name){
