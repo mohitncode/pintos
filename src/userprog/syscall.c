@@ -10,12 +10,14 @@
 #include "filesys/filesys.h"
 
 static void syscall_handler (struct intr_frame *);
+static int fd_count = 2;
 
 /* Prototype for syscall methods */
 int sys_write (int fd, void *buf, int size);
 void sys_exit (int s);
 bool is_valid_ptr (void* uptr);
 int create(const char *name, int initial_size);
+int open (const char *name);
 
 void
 syscall_init (void)
@@ -45,6 +47,7 @@ static void syscall_handler (struct intr_frame *f ) {
     case SYS_REMOVE:
       break;
     case SYS_OPEN:
+       f->eax = open ((char *) *(esp + 1));
       break;
     case SYS_FILESIZE:
       break;
@@ -112,4 +115,14 @@ bool is_valid_ptr (void* uptr) {
 
 int create(const char *name, int initial_size){
   return  filesys_create(name,initial_size);
+}
+
+int open (const char *name){
+  int status = -1;
+  struct file *f = filesys_open(name);
+  if(f != NULL){
+    status = fd_count;
+    fd_count++;
+  }
+  return status;
 }
