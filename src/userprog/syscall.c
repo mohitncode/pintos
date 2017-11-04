@@ -31,6 +31,7 @@ int sys_create(const char *name, int initial_size);
 int sys_open (const char *name);
 int sys_read (int fd, void *buffer, off_t size);
 int sys_filesize (int fd);
+void sys_seek(int fd, int location);
 
 void syscall_init (void) {
   intr_register_int (0x30, 3, INTR_ON, syscall_handler, "syscall");
@@ -71,6 +72,7 @@ static void syscall_handler (struct intr_frame *f ) {
       f->eax = sys_write (*(esp + 1), (void *) *(esp + 2), *(esp + 3));
       break;
     case SYS_SEEK:
+      sys_seek(*(esp+1),*(esp+2));
       break;
     case SYS_TELL:
       break;
@@ -78,6 +80,21 @@ static void syscall_handler (struct intr_frame *f ) {
       break;
   }
 }
+
+void sys_seek(int fd, int loc) {
+  struct thread *t = thread_current ();
+  struct list_elem *e;
+
+  lock_acquire (&filesystem_lock);
+  for (e = list_begin (&t->files); e != list_end (&t->files); e = list_next (e)) {
+    struct file_descriptor *f = list_entry (e, struct file_descriptor, file_elem);
+     if (f->fid == fd) {
+      file_seek(f->file_ref, loc);
+    }
+  }
+  lock_release(&filesystem_lock);
+}
+
 
 void sys_exit (int status) {
   struct thread *t = thread_current ();
