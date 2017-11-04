@@ -108,24 +108,23 @@ int sys_write (int fd, void* buffer, int buffer_size) {
 
   if (validate_ptr (buffer) && validate_ptr (buffer + buffer_size)) {
     lock_acquire (&filesystem_lock);
-    if (fd == STDIN_FILENO) {
-      // Cannot write to standard input
-      status = -1;
-    } else if (fd == STDOUT_FILENO) {
+
+    /* We ignore the case where fd = STDIN as we can't write to it */
+    if (fd == STDOUT_FILENO) {
       putbuf (buffer, buffer_size);
       status = buffer_size;
-    } else {
-      struct list open_files = thread_current ()->files;
+    } else if (fd > STDOUT_FILENO) {
+      struct thread *t = thread_current ();
       struct list_elem *e;
 
-      for (e = list_begin (&open_files); e != list_end (&open_files); e = list_next (e)) {
+      for (e = list_begin (&t->files); e != list_end (&t->files); e = list_next (e)) {
         struct file_descriptor *f = list_entry (e, struct file_descriptor, file_elem);
 
         /* If child's ID is equal to current thread's ID */
         if (f->fid == fd) {
           // printf ("\nFound file with FID %d!\n", fd);
           status = file_write (f->file_ref, buffer, buffer_size);
-          // printf ("\nRead file successfully with status %d!\n", status);
+          // printf ("\Wrote file successfully with status %d!\n", status);
           break;
         }
       }
@@ -183,10 +182,10 @@ int sys_open (const char *name){
 
 int sys_filesize (int fd) {
   int status = -1;
-  struct list open_files = thread_current ()->files;
+  struct thread *t = thread_current ();
   struct list_elem *e;
 
-  for (e = list_begin (&open_files); e != list_end (&open_files); e = list_next (e)) {
+  for (e = list_begin (&t->files); e != list_end (&t->files); e = list_next (e)) {
     struct file_descriptor *f = list_entry (e, struct file_descriptor, file_elem);
 
     /* If child's ID is equal to current thread's ID */
@@ -209,6 +208,8 @@ int sys_read (int fd, void *buffer, int size) {
   if (validate_ptr (buffer) && validate_ptr (buffer + size)) {
     // printf ("\nTrying to open file with FD %d\n", fd);
     lock_acquire (&filesystem_lock);
+
+    /* We ignore the case where fd = STDOUT as we can't read from it */
     if (fd == STDIN_FILENO) {
       int read_bytes = 0;
       while (input_getc() != 0) {
@@ -217,12 +218,10 @@ int sys_read (int fd, void *buffer, int size) {
       // printf ("Read bytes = %d and size = %d\n", read_bytes, size);
 
       status = read_bytes;
-    } else if (fd == STDOUT_FILENO) {
-      status = -1;
-    } else {
-      struct list open_files = thread_current ()->files;
+    } else if (fd > 1) {
+      struct thread *t = thread_current ();
       struct list_elem *e;
-      for (e = list_begin (&open_files); e != list_end (&open_files); e = list_next (e)) {
+      for (e = list_begin (&t->files); e != list_end (&t->files); e = list_next (e)) {
         struct file_descriptor *f = list_entry (e, struct file_descriptor, file_elem);
 
         /* If child's ID is equal to current thread's ID */
