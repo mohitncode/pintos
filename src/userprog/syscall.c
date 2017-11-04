@@ -107,15 +107,30 @@ int sys_write (int fd, void* buffer, int buffer_size) {
   int status = -1;
 
   if (validate_ptr (buffer) && validate_ptr (buffer + buffer_size)) {
+    lock_acquire (&filesystem_lock);
     if (fd == STDIN_FILENO) {
       // Cannot write to standard input
       status = -1;
     } else if (fd == STDOUT_FILENO) {
-      lock_acquire (&filesystem_lock);
       putbuf (buffer, buffer_size);
       status = buffer_size;
-      lock_release (&filesystem_lock);
+    } else {
+      struct list open_files = thread_current ()->files;
+      struct list_elem *e;
+
+      for (e = list_begin (&open_files); e != list_end (&open_files); e = list_next (e)) {
+        struct file_descriptor *f = list_entry (e, struct file_descriptor, file_elem);
+
+        /* If child's ID is equal to current thread's ID */
+        if (f->fid == fd) {
+          // printf ("\nFound file with FID %d!\n", fd);
+          status = file_write (f->file_ref, buffer, buffer_size);
+          // printf ("\nRead file successfully with status %d!\n", status);
+          break;
+        }
+      }
     }
+    lock_release (&filesystem_lock);
   }
 
   return status;
@@ -190,8 +205,6 @@ int sys_filesize (int fd) {
 
 int sys_read (int fd, void *buffer, int size) {
   int status = -1;
-  struct list open_files = thread_current ()->files;
-  struct list_elem *e;
 
   if (validate_ptr (buffer) && validate_ptr (buffer + size)) {
     // printf ("\nTrying to open file with FD %d\n", fd);
@@ -207,6 +220,8 @@ int sys_read (int fd, void *buffer, int size) {
     } else if (fd == STDOUT_FILENO) {
       status = -1;
     } else {
+      struct list open_files = thread_current ()->files;
+      struct list_elem *e;
       for (e = list_begin (&open_files); e != list_end (&open_files); e = list_next (e)) {
         struct file_descriptor *f = list_entry (e, struct file_descriptor, file_elem);
 
