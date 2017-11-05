@@ -125,10 +125,10 @@ static void start_process (void *file_name_) {
 int process_wait (tid_t child_tid) {
   int status = TID_ERROR;
 
-  struct list children = thread_current ()->child_threads;
+  struct thread *t = thread_current ();
   struct list_elem *e;
 
-  for (e = list_begin (&children); e != list_end (&children); e = list_next (e)) {
+  for (e = list_begin (&t->child_threads); e != list_end (&t->child_threads); e = list_next (e)) {
     struct child_thread_status *c = list_entry (e, struct child_thread_status, child_elem);
 
     if (c->tid == child_tid) {
@@ -354,8 +354,9 @@ load (const char *file_name, void (**eip) (void), void **esp, int argc, char **a
     }
 
   /* Set up stack. */
-  if (!setup_stack (esp, argc, argv))
+  if (!setup_stack (esp, argc, argv)) {
     goto done;
+  }
 
   /* Start address. */
   *eip = (void (*) (void)) ehdr.e_entry;
