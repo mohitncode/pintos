@@ -11,7 +11,9 @@
 #include "threads/synch.h"
 #include "threads/thread.h"
 #include "threads/vaddr.h"
+#include "userprog/process.h"
 
+typedef int pid_t;
 struct lock filesystem_lock;
 
 /* File descriptor structure */
@@ -32,6 +34,8 @@ int sys_open (const char *name);
 int sys_read (int fd, void *buffer, off_t size);
 int sys_filesize (int fd);
 void sys_seek(int fd, int location);
+int sys_tell(int fd);
+tid_t sys_exec(char* file);
 
 void syscall_init (void) {
   intr_register_int (0x30, 3, INTR_ON, syscall_handler, "syscall");
@@ -42,6 +46,7 @@ static void syscall_handler (struct intr_frame *f ) {
   /* Cast interrupt frame's stack pointer to an integer pointer */
 
   int32_t *esp = f->esp;
+    pid_t pid= *(esp+1);
 
   switch (*esp) {
     case SYS_HALT:
@@ -51,8 +56,10 @@ static void syscall_handler (struct intr_frame *f ) {
       sys_exit (*(esp + 1));
       break;
     case SYS_EXEC:
+      f->eax=sys_exec((char *)*(esp+1));
       break;
     case SYS_WAIT:
+      f->eax= process_wait(pid);
       break;
     case SYS_CREATE:
        f->eax = sys_create ((char *) *(esp + 1), *(esp + 2));
@@ -75,12 +82,36 @@ static void syscall_handler (struct intr_frame *f ) {
       sys_seek(*(esp+1),*(esp+2));
       break;
     case SYS_TELL:
+       f->eax=sys_tell(*(esp+1));
       break;
     case SYS_CLOSE:
       break;
   }
 }
 
+tid_t sys_exec(char *args){
+  lock_acquire (&filesystem_lock);
+  tid_t thread_id=process_execute(args);
+  lock_release(&filesystem_lock);
+  return thread_id;
+}
+int sys_tell(int fd){
+  struct thread *t = thread_current ();
+  struct list_elem *e;
+  off_t status=-1;
+
+  lock_acquire (&filesystem_lock);
+  for (e = list_begin (&t->files); e != list_end (&t->files); e = list_next (e)) {
+    struct file_descriptor *f = list_entry (e, struct file_descriptor, file_elem);
+     if (f->fid == fd) {
+     status= file_tell(f->file_ref);
+     break;
+    }
+  }
+  lock_release(&filesystem_lock);
+  return status;
+
+}
 void sys_seek(int fd, int loc) {
   struct thread *t = thread_current ();
   struct list_elem *e;
@@ -90,7 +121,9 @@ void sys_seek(int fd, int loc) {
     struct file_descriptor *f = list_entry (e, struct file_descriptor, file_elem);
      if (f->fid == fd) {
       file_seek(f->file_ref, loc);
+      break;
     }
+
   }
   lock_release(&filesystem_lock);
 }

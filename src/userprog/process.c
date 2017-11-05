@@ -98,6 +98,7 @@ static void start_process (void *file_name_) {
 
   struct thread *t = thread_current ();
   if (t->parent) {
+
     // TODO
   }
 
@@ -105,6 +106,8 @@ static void start_process (void *file_name_) {
   palloc_free_page (file_name);
   if (!success)
     thread_exit ();
+
+
 
   /* Start the user process by simulating a return from an
      interrupt, implemented by intr_exit (in
@@ -129,7 +132,8 @@ int process_wait (tid_t child_tid) {
   int status = 0;
   if (child_tid == TID_ERROR) {
     status = TID_ERROR;
-  } else {
+  } 
+  else {
     struct list children = thread_current ()->child_threads;
     struct list_elem *e;
 
