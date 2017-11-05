@@ -43,8 +43,10 @@ process_execute (const char *file_name)
     return TID_ERROR;
   strlcpy (fn_copy, file_name, PGSIZE);
 
+  char *command_copy = palloc_get_page (0);
+  strlcpy (command_copy, file_name, PGSIZE);
   char *save_ptr;
-  char *command = strtok_r (file_name, " ", &save_ptr);
+  char *command = strtok_r (command_copy, " ", &save_ptr);
 
   /* Create a new thread to execute FILE_NAME. */
   tid = thread_create (command, PRI_DEFAULT, start_process, fn_copy);
@@ -58,7 +60,6 @@ process_execute (const char *file_name)
     child->has_exited = false;
 
     sema_init (&child->wait_sema, 0);
-
     list_push_back (&t->child_threads, &child->child_elem);
     // printf ("Size of child_threads is %d\n", list_size (&t->child_threads));
   }
@@ -96,18 +97,11 @@ static void start_process (void *file_name_) {
   if_.eflags = FLAG_IF | FLAG_MBS;
   success = load (file_name, &if_.eip, &if_.esp, argc, argv);
 
-  struct thread *t = thread_current ();
-  if (t->parent) {
-
-    // TODO
-  }
-
   /* If load failed, quit. */
   palloc_free_page (file_name);
-  if (!success)
+  if (!success) {
     thread_exit ();
-
-
+  }
 
   /* Start the user process by simulating a return from an
      interrupt, implemented by intr_exit (in
@@ -129,30 +123,19 @@ static void start_process (void *file_name_) {
    This function will be implemented in problem 2-2.  For now, it
    does nothing. */
 int process_wait (tid_t child_tid) {
-  int status = 0;
-  if (child_tid == TID_ERROR) {
-    status = TID_ERROR;
-  } 
-  else {
-    struct list children = thread_current ()->child_threads;
-    struct list_elem *e;
+  int status = TID_ERROR;
 
-    for (e = list_begin (&children); e != list_end (&children); e = list_next (e)) {
-      struct child_thread_status *c = list_entry (e, struct child_thread_status, child_elem);
+  struct list children = thread_current ()->child_threads;
+  struct list_elem *e;
 
-      if (c->tid == child_tid) {
-        sema_down (&c->wait_sema);
-        // printf ("\nSemaphore is now at 0\n");
+  for (e = list_begin (&children); e != list_end (&children); e = list_next (e)) {
+    struct child_thread_status *c = list_entry (e, struct child_thread_status, child_elem);
 
-        if (!c->has_exited) {
-          status = -1;
-        } else {
-          status = c->exit_code;
-          break;
-        }
-      } else {
-        status = -1;
-      }
+    if (c->tid == child_tid) {
+      sema_down (&c->wait_sema);
+      // printf ("\nSemaphore is now at 0\n");
+      status = c->exit_code;
+      break;
     }
   }
 
