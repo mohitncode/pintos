@@ -56,10 +56,10 @@ static void syscall_handler (struct intr_frame *f ) {
       sys_exit (*(esp + 1));
       break;
     case SYS_EXEC:
-      f->eax=sys_exec((char *)*(esp+1));
+      f->eax = sys_exec ((char *) *(esp + 1));
       break;
     case SYS_WAIT:
-      f->eax= process_wait(pid);
+      f->eax= process_wait (pid);
       break;
     case SYS_CREATE:
        f->eax = sys_create ((char *) *(esp + 1), *(esp + 2));
@@ -89,10 +89,10 @@ static void syscall_handler (struct intr_frame *f ) {
   }
 }
 
-tid_t sys_exec(char *args){
+tid_t sys_exec (char *args) {
   lock_acquire (&filesystem_lock);
-  tid_t thread_id=process_execute(args);
-  lock_release(&filesystem_lock);
+  tid_t thread_id = process_execute (args);
+  lock_release (&filesystem_lock);
   return thread_id;
 }
 int sys_tell(int fd){

@@ -27,11 +27,13 @@ typedef int tid_t;
 
 struct child_thread_status {
   tid_t tid;
-  bool has_loaded;
-  bool has_exited;
+  int load_status;
   int exit_code;
+  bool has_exited;
+  bool has_loaded;
   struct list_elem child_elem;
   struct semaphore wait_sema;
+  struct semaphore load_sema;
 };
 
 /* A kernel thread or user process.

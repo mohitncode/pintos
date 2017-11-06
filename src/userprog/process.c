@@ -60,7 +60,12 @@ process_execute (const char *file_name)
     child->has_exited = false;
 
     sema_init (&child->wait_sema, 0);
+    sema_init (&child->load_sema, 0);
     list_push_back (&t->child_threads, &child->child_elem);
+
+    /* Block till the load of child process has completed */
+    sema_down (&child->load_sema);
+    tid = child->load_status;
     // printf ("Size of child_threads is %d\n", list_size (&t->child_threads));
   }
 
@@ -96,6 +101,23 @@ static void start_process (void *file_name_) {
   if_.cs = SEL_UCSEG;
   if_.eflags = FLAG_IF | FLAG_MBS;
   success = load (file_name, &if_.eip, &if_.esp, argc, argv);
+
+  struct thread *t = thread_current ();
+  struct list_elem *e;
+
+  for (e = list_begin (&t->parent->child_threads); e != list_end (&t->parent->child_threads); e = list_next (e)) {
+    struct child_thread_status *c = list_entry (e, struct child_thread_status, child_elem);
+
+    /* If child's ID is equal to current thread's ID */
+    if (c->tid == t->tid) {
+      if (success) {
+        c->has_loaded = true;
+        c->load_status = t->tid;
+      }
+      sema_up (&c->load_sema);
+      break;
+    }
+  }
 
   /* If load failed, quit. */
   palloc_free_page (file_name);
@@ -275,11 +297,12 @@ load (const char *file_name, void (**eip) (void), void **esp, int argc, char **a
 
   /* Open executable file. */
   file = filesys_open (file_name);
-  if (file == NULL)
-    {
-      printf ("load: %s: open failed\n", file_name);
-      goto done;
-    }
+  if (file == NULL) {
+    printf ("load: %s: open failed\n", file_name);
+    goto done;
+  } else {
+    file_deny_write (file);
+  }
 
   /* Read and verify executable header. */
   if (file_read (file, &ehdr, sizeof ehdr) != sizeof ehdr
