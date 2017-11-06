@@ -29,13 +29,13 @@ static void syscall_handler (struct intr_frame *);
 int sys_write (int fd, void *buf, int size);
 void sys_exit (int s);
 int validate_ptr (void* uptr);
-int sys_create(const char *name, int initial_size);
-int sys_open (const char *name);
+int sys_create (char* name, int initial_size);
+int sys_open (char* name);
 int sys_read (int fd, void *buffer, off_t size);
 int sys_filesize (int fd);
-void sys_seek(int fd, int location);
-int sys_tell(int fd);
-tid_t sys_exec(char* file);
+void sys_seek (int fd, int location);
+int sys_tell (int fd);
+tid_t sys_exec (char* file);
 
 void syscall_init (void) {
   intr_register_int (0x30, 3, INTR_ON, syscall_handler, "syscall");
@@ -59,7 +59,7 @@ static void syscall_handler (struct intr_frame *f ) {
       f->eax = sys_exec ((char *) *(esp + 1));
       break;
     case SYS_WAIT:
-      f->eax= process_wait (pid);
+      f->eax = process_wait (pid);
       break;
     case SYS_CREATE:
        f->eax = sys_create ((char *) *(esp + 1), *(esp + 2));
@@ -79,23 +79,31 @@ static void syscall_handler (struct intr_frame *f ) {
       f->eax = sys_write (*(esp + 1), (void *) *(esp + 2), *(esp + 3));
       break;
     case SYS_SEEK:
-      sys_seek(*(esp+1),*(esp+2));
+      sys_seek (*(esp + 1),*(esp + 2));
       break;
     case SYS_TELL:
-       f->eax=sys_tell(*(esp+1));
+       f->eax = sys_tell(*(esp + 1));
       break;
     case SYS_CLOSE:
       break;
+    default:
+      sys_exit (-1);
   }
 }
 
 tid_t sys_exec (char *args) {
-  lock_acquire (&filesystem_lock);
-  tid_t thread_id = process_execute (args);
-  lock_release (&filesystem_lock);
+  tid_t thread_id;
+  if (validate_ptr (args)) {
+    lock_acquire (&filesystem_lock);
+    thread_id = process_execute (args);
+    lock_release (&filesystem_lock);
+  } else {
+    sys_exit (-1);
+  }
   return thread_id;
 }
-int sys_tell(int fd){
+
+int sys_tell (int fd){
   struct thread *t = thread_current ();
   struct list_elem *e;
   off_t status=-1;
@@ -112,7 +120,7 @@ int sys_tell(int fd){
   return status;
 
 }
-void sys_seek(int fd, int loc) {
+void sys_seek (int fd, int loc) {
   struct thread *t = thread_current ();
   struct list_elem *e;
 
@@ -186,45 +194,46 @@ int sys_write (int fd, void* buffer, int buffer_size) {
 }
 
 int validate_ptr (void* uptr) {
-  if (is_user_vaddr (uptr)
-    && pagedir_get_page (thread_current () ->pagedir, uptr) != NULL) {
-    return 1;
-  } else {
+  if (pagedir_get_page (thread_current ()->pagedir, uptr) == NULL || !uptr || !is_user_vaddr (uptr)) {
     return 0;
+  } else {
+    return 1;
   }
 }
 
-int sys_create (const char *name, int initial_size) {
+int sys_create (char* name, int initial_size) {
   int status = -1;
-  if (name != NULL) {
+  if (validate_ptr (name)) {
     lock_acquire (&filesystem_lock);
     status = filesys_create (name, initial_size);
     lock_release (&filesystem_lock);
+  } else {
+    sys_exit (status);
   }
   return status;
 }
 
-int sys_open (const char *name){
+int sys_open (char* name){
   int status = -1;
 
-  if (NULL == name) {
-    return status;
-  }
+  if (validate_ptr (name)) {
+    lock_acquire (&filesystem_lock);
+    struct file *f = filesys_open (name);
+    lock_release (&filesystem_lock);
 
-  lock_acquire (&filesystem_lock);
-  struct file *f = filesys_open (name);
-  lock_release (&filesystem_lock);
+    if (f != NULL) {
+      struct thread *t = thread_current ();
+      struct file_descriptor *fd;
+      fd = calloc (1, sizeof *fd);
 
-  if (f != NULL) {
-    struct thread *t = thread_current ();
-    struct file_descriptor *fd;
-    fd = calloc (1, sizeof *fd);
-
-    fd->fid = t->next_fd;
-    t->next_fd++;
-    fd->file_ref = f;
-    list_push_back (&t->files , &fd->file_elem);
-    status = fd->fid;
+      fd->fid = t->next_fd;
+      t->next_fd++;
+      fd->file_ref = f;
+      list_push_back (&t->files , &fd->file_elem);
+      status = fd->fid;
+    }
+  } else {
+    sys_exit (status);
   }
 
   return status;
