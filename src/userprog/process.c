@@ -55,9 +55,11 @@ process_execute (const char *file_name)
   } else {
     struct thread *t = thread_current ();
     struct child_thread_status *child;
-    child = calloc (1, sizeof *child);
+    child = malloc (sizeof *child);
     child->tid = tid;
     child->has_exited = false;
+    child->exit_code = -1;
+    child->load_status = -1;
 
     sema_init (&child->wait_sema, 0);
     sema_init (&child->load_sema, 0);

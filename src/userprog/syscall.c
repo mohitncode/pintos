@@ -13,7 +13,8 @@
 #include "threads/vaddr.h"
 #include "userprog/process.h"
 
-typedef int pid_t;
+#define USER_CODE_SEGMENT ((void *) 0x08048000)
+
 struct lock filesystem_lock;
 
 /* File descriptor structure */
@@ -46,7 +47,11 @@ static void syscall_handler (struct intr_frame *f ) {
   /* Cast interrupt frame's stack pointer to an integer pointer */
 
   int32_t *esp = f->esp;
-    pid_t pid= *(esp+1);
+
+  if (!validate_ptr (esp) || (void *) esp < USER_CODE_SEGMENT ||
+    !validate_ptr (esp + 1) || (void *) (esp + 1) < USER_CODE_SEGMENT) {
+    sys_exit (-1);
+  }
 
   switch (*esp) {
     case SYS_HALT:
@@ -59,7 +64,7 @@ static void syscall_handler (struct intr_frame *f ) {
       f->eax = sys_exec ((char *) *(esp + 1));
       break;
     case SYS_WAIT:
-      f->eax = process_wait (pid);
+      f->eax = process_wait (*(esp + 1));
       break;
     case SYS_CREATE:
        f->eax = sys_create ((char *) *(esp + 1), *(esp + 2));
@@ -194,7 +199,8 @@ int sys_write (int fd, void* buffer, int buffer_size) {
 }
 
 int validate_ptr (void* uptr) {
-  if (pagedir_get_page (thread_current ()->pagedir, uptr) == NULL || !uptr || !is_user_vaddr (uptr)) {
+  if (!is_user_vaddr (uptr) || uptr < USER_CODE_SEGMENT || !uptr
+      || pagedir_get_page (thread_current ()->pagedir, uptr) == NULL) {
     return 0;
   } else {
     return 1;
@@ -224,7 +230,7 @@ int sys_open (char* name){
     if (f != NULL) {
       struct thread *t = thread_current ();
       struct file_descriptor *fd;
-      fd = calloc (1, sizeof *fd);
+      fd = malloc (sizeof *fd);
 
       fd->fid = t->next_fd;
       t->next_fd++;
@@ -291,6 +297,8 @@ int sys_read (int fd, void *buffer, int size) {
           break;
         }
       }
+    } else {
+      sys_exit (-1);
     }
     lock_release (&filesystem_lock);
   }
