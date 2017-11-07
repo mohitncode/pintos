@@ -31,6 +31,7 @@ struct child_thread_status {
   int exit_code;
   bool has_exited;
   bool has_loaded;
+  bool has_wait_called;
   struct list_elem child_elem;
   struct semaphore wait_sema;
   struct semaphore load_sema;

@@ -58,7 +58,8 @@ process_execute (const char *file_name)
     child = malloc (sizeof *child);
     child->tid = tid;
     child->has_exited = false;
-    child->exit_code = -1;
+    child->has_loaded = false;
+    child->has_wait_called = false;
     child->load_status = -1;
 
     sema_init (&child->wait_sema, 0);
@@ -155,7 +156,8 @@ int process_wait (tid_t child_tid) {
   for (e = list_begin (&t->child_threads); e != list_end (&t->child_threads); e = list_next (e)) {
     struct child_thread_status *c = list_entry (e, struct child_thread_status, child_elem);
 
-    if (c->tid == child_tid) {
+    if (c->tid == child_tid && !c->has_wait_called) {
+      c->has_wait_called = true;
       sema_down (&c->wait_sema);
       // printf ("\nSemaphore is now at 0\n");
       status = c->exit_code;
