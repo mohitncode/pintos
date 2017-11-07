@@ -146,6 +146,7 @@ void sys_exit (int status) {
   struct thread *t = thread_current ();
   struct list children = t->parent->child_threads;
   struct list_elem *e;
+  printf ("%s: exit(%d)\n", t->name, status);
   /*
     Look for current ID in parent's list of child threads and set it's
     exit status in the list element's child structure
@@ -162,7 +163,6 @@ void sys_exit (int status) {
     }
   }
 
-  printf ("%s: exit(%d)\n", t->name, status);
   thread_exit ();
 }
 
