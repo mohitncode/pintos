@@ -1,0 +1,333 @@
+         +--------------------------+
+         |          CS 521          |
+         | PROJECT 2: USER PROGRAMS |
+         |     DESIGN DOCUMENT      |
+         +--------------------------+
+
+---- GROUP ----
+
+>> Fill in the names and email addresses of your group members.
+
+Mohit Delhiwala <mohithem@buffalo.edu>
+Satvinder Singh Panesar <satvinde@buffalo.edu, panesar.satvindersingh@gmail.com>
+Harshal Anil Patil <harshala@buffalo.edu>
+
+---- PRELIMINARIES ----
+
+>> If you have any preliminary comments on your submission, notes for the
+>> TAs, or extra credit, please give them here.
+
+>> Please cite any offline or online sources you consulted while
+>> preparing your submission, other than the Pintos documentation, course
+>> text, lecture notes, and course staff.
+
+Online sources:
+
+  * codyjack's GitHub page
+    (https://github.com/codyjack)
+
+  * https://web.stanford.edu/class/cs140/projects/pintos/pintos.html#SEC_Contents
+
+         ARGUMENT PASSING
+         ================
+
+---- DATA STRUCTURES ----
+
+>> A1: Copy here the declaration of each new or changed `struct' or
+>> `struct' member, global or static variable, `typedef', or
+>> enumeration.  Identify the purpose of each in 25 words or less.
+
+None.
+
+---- ALGORITHMS ----
+
+>> A2: Briefly describe how you implemented argument parsing.  How do
+>> you arrange for the elements of argv[] to be in the right order?
+>> How do you avoid overflowing the stack page?
+
+We changed the logic of process_execute () method to tokenize the file
+name into the space delimited tokens. The first token is the command name
+and the remaining string are the space separated arguments. These are
+further tokenized in start_process () and both the command name and the
+arguments are passed to setup_stack () along with the arguments count
+
+Arguments are pushed in the right order by counting down from the
+arguments pointer passed till the number of arguments is reached. We
+prevent stack overflow by decrementing the stack pointer by the length of
+the arguments before inserting it.
+
+---- RATIONALE ----
+
+>> A3: Why does Pintos implement strtok_r() but not strtok()?
+
+strtok_r is a reentrant version of strtok. The key difference between the
+two functions is that where strtok uses a global variable between calls to
+store state, strtok_r uses a save pointer to maintain context. The reason
+why Pintos probably implements strtok_r and not strtok is strtok_r is a
+threadsafe version of strtok
+
+>> A4: In Pintos, the kernel separates commands into a executable name
+>> and arguments.  In Unix-like systems, the shell does this
+>> separation.  Identify at least two advantages of the Unix approach.
+
+The two advantages of splitting commands into executable name and
+arguments in the shell instead of the kernel are:
+
+  1. The kernel has to do less work. This not only allows the kernel code
+     to be simpler, it is also in line with the Unix philosophy which says
+     that programs should do one thing and do it well
+
+  2. The shell can not only perform the splitting of the commands but can
+     also perform basic checks and validations on the arguments supplied.
+     This in turn results in less overhead for the kernel
+
+           SYSTEM CALLS
+           ============
+
+---- DATA STRUCTURES ----
+
+>> B1: Copy here the declaration of each new or changed `struct' or
+>> `struct' member, global or static variable, `typedef', or
+>> enumeration.  Identify the purpose of each in 25 words or less.
+
+We introduced a new data structure in thread.h to store information about
+the child thread's status:
+
+  struct child_thread_status {
+    tid_t tid;
+    int load_status;
+    int exit_code;
+    bool has_exited;
+    bool has_loaded;
+    bool has_wait_called;
+    struct list_elem child_elem;
+    struct semaphore wait_sema;
+    struct semaphore load_sema;
+  };
+
+In addition to the above data structure, we modified the thread struct
+to include the following fields:
+
+  * struct thread *parent;
+  - Reference to the parent thread
+
+  * struct list child_threads;
+  - A list containing the references of the children of the current
+    thread
+
+  * struct list files;
+  - A list containing the list of open file descriptors by the thread
+
+  * int next_fd;
+  - An integer variable to keep track of the next available FD ID
+
+
+We created a new data structure in syscall_impl.h to store the details
+about file descriptors:
+
+  struct file_descriptor {
+    int fid;
+    struct file *file_ref;
+    struct list_elem file_elem;
+  };
+
+We also added the following variables in syscall_impl.h:
+
+  * struct lock filesystem_lock;
+  - A global lock that must be acquired by a thread before performing
+    filesystem operations
+
+>> B2: Describe how file descriptors are associated with open files.
+>> Are file descriptors unique within the entire OS or just within a
+>> single process?
+
+Each file has a unique file descriptor associated with it. The file
+descriptor is unique per process
+
+---- ALGORITHMS ----
+
+>> B3: Describe your code for reading and writing user data from the
+>> kernel.
+
+The below steps are performed while reading user data from the kernel:
+
+  1. Check the validity of the buffer and buffer + size pointers
+  2. If both pointers are valid, proceed to step 3. Else exit with status
+    -1
+  3. Dereference the pointers and perform the filesystem operation
+     requested
+  4. If a page fault occurs, gracefully terminate the process instead of
+     causing kernel panic
+
+We do not write data to the kernel
+
+>> B4: Suppose a system call causes a full page (4,096 bytes) of data
+>> to be copied from user space into the kernel.  What is the least
+>> and the greatest possible number of inspections of the page table
+>> (e.g. calls to pagedir_get_page()) that might result?  What about
+>> for a system call that only copies 2 bytes of data?  Is there room
+>> for improvement in these numbers, and how much?
+
+pagedir_get_page() returns kernel virtual address for specified frame and
+NULL pointer if no mapping is found
+
+Full Page Copy:
+
+If the page is continuous then pagedir_get_page() for the first time
+itself will provide needed level of inspection for the kernel that address
+provided by user is valid. If page is in form of chunks and assuming
+smallest chunk size is 1 byte, then 4096 inspections are required
+
+2 Bytes Copy:
+If the page is continuous then pagedir_get_page() for the first time
+itself will provide needed level of inspection for the kernel that address
+provided by user is valid. If page is in form of chunks and assuming
+smallest chunk size is 1 byte, then 2 inspections are required.
+
+No scope of improvement as per our current understanding
+
+>> B5: Briefly describe your implementation of the "wait" system call
+>> and how it interacts with process termination.
+
+The "wait" system call is internally implemented using process_wait. This
+in turn is implemented using a binary semaphore. Whenever a thread calls
+wait on another thread, it decrements the counter to below zero, thereby
+blocking it. This prevents the parent thread from being scheduled while
+the child thread is running. When a child is done executing, it updates
+it's exit code inside the exit_code variable within the reference of
+itself maintained by the parent thread. It then increments the semaphore
+by 1, bringing the counter to zero and unblocking the main thread. The main
+thread can then lookup the exit code of the child that exited in the list
+maintained by it
+
+>> B6: Any access to user program memory at a user-specified address
+>> can fail due to a bad pointer value.  Such accesses must cause the
+>> process to be terminated.  System calls are fraught with such
+>> accesses, e.g. a "write" system call requires reading the system
+>> call number from the user stack, then each of the call's three
+>> arguments, then an arbitrary amount of user memory, and any of
+>> these can fail at any point.  This poses a design and
+>> error-handling problem: how do you best avoid obscuring the primary
+>> function of code in a morass of error-handling?  Furthermore, when
+>> an error is detected, how do you ensure that all temporarily
+>> allocated resources (locks, buffers, etc.) are freed?  In a few
+>> paragraphs, describe the strategy or strategies you adopted for
+>> managing these issues.  Give an example.
+
+Our first line of defense is to validate all pointers before accessing
+them. If any of the pointers are invalid, then we terminate the process
+and return status -1. Even after all these checks, if errors do occur,
+we trap them using the page_fault_exception routine, terminate the process
+and return status as -1
+
+---- SYNCHRONIZATION ----
+
+>> B7: The "exec" system call returns -1 if loading the new executable
+>> fails, so it cannot return before the new executable has completed
+>> loading.  How does your code ensure this?  How is the load
+>> success/failure status passed back to the thread that calls "exec"?
+
+Each child thread contains a binary semaphore called load_sema which is
+initialized to 0. The "exec" system call is implemented using
+process_exec (). Whenever "exec" is called, the load semaphore is
+decremented by 1 causing the parent thread to block. The newly created
+child thread is then scheduled and runs. Once the child thread has loaded
+(successfully or unsuccessfully) it updates it's load_status value in
+the reference of itself maintained by the parent thread. It then
+increments the value of the load semaphore causing it to reach zero
+and unblocking the parent thread. The parent thread can then safely
+fetch the load status of the child thread.
+
+>> B8: Consider parent process P with child process C.  How do you
+>> ensure proper synchronization and avoid race conditions when P
+>> calls wait(C) before C exits?  After C exits?  How do you ensure
+>> that all resources are freed in each case?  How about when P
+>> terminates without waiting, before C exits?  After C exits?  Are
+>> there any special cases?
+
+Case 1: P calls wait(C) BEFORE C exits
+
+  P decrements the wait semaphore causing it to fall below 0, thereby
+  blocking P. When C has finished execution, it sets its exit status
+  inside P's reference of C and increments the wait semaphore causing
+  P to resume execution again
+
+Case 2: P calls wait(C) AFTER C exits
+
+  In this case, C will have incremented the wait semaphore by 1 before
+  exiting and it's value will be at 1. It will have also set it's status
+  inside P's reference of C. Thus when P eventually does call wait (C),
+  it will perform the decrement operation on the wait semaphore. However,
+  this will only reduce it to 0 and thus not block P. It can then safely
+  retrieve C's exit code from C's reference in the child_threads list
+
+Case 3: P terminates without waiting BEFORE C exits
+
+  This can happen only if P was killed by the kernel before it could
+  invoke wait (C). In this case, eventually when C does exit, it will try
+  to locate its parent to set it's exit code and fail to do so. It will
+  skip updating it's status in the parent variable and exit gracefully
+
+Case 4: P terminates without waiting AFTER C exits
+
+  This will happen only if P is killed by the kernel after C has exited
+  and before P could invoke wait (C). In this case, all resources used
+  by P will be freed
+
+---- RATIONALE ----
+
+>> B9: Why did you choose to implement access to user memory from the
+>> kernel in the way that you did?
+
+Access to user memory from the kernel is implemented by validating the
+user pointers before accessing them. The reason we chose this approach is
+because it is simple to understand and trivial to implement. We also
+added a second layer of defense by checking for userspace violations
+whenever a page fault occurs and gracefully exiting instead of
+triggering kernel panic
+
+>> B10: What advantages or disadvantages can you see to your design
+>> for file descriptors?
+
+Advantages:
+
+- Since file descriptors are maintained on a per process level, we
+  instead of at the OS level, we achieve better isolation and
+  security as well as avoid the hassle of checking ownership permissions
+  before any operation is performed
+
+Disadvantages:
+
+- Since file descriptors are at a per process level, there might be
+  multiple references of the same file if it's opened by different
+  processes. This results in a greater memory footprint, especially
+  if the number of processes requesting a file is particularly high
+
+>> B11: The default tid_t to pid_t mapping is the identity mapping.
+>> If you changed it, what advantages are there to your approach?
+
+We didn't change it
+
+         SURVEY QUESTIONS
+         ================
+
+Answering these questions is optional, but it will help us improve the
+course in future quarters.  Feel free to tell us anything you
+want--these questions are just to spur your thoughts.  You may also
+choose to respond anonymously in the course evaluations at the end of
+the quarter.
+
+>> In your opinion, was this assignment, or any one of the three problems
+>> in it, too easy or too hard?  Did it take too long or too little time?
+
+>> Did you find that working on a particular part of the assignment gave
+>> you greater insight into some aspect of OS design?
+
+>> Is there some particular fact or hint we should give students in
+>> future quarters to help them solve the problems?  Conversely, did you
+>> find any of our guidance to be misleading?
+
+>> Do you have any suggestions for the TAs to more effectively assist
+>> students, either for future quarters or the remaining projects?
+
+>> Any other comments?
