@@ -4,6 +4,8 @@
 #include "userprog/gdt.h"
 #include "threads/interrupt.h"
 #include "threads/thread.h"
+#include "userprog/syscall_impl.h"
+
 
 /* Number of page faults processed. */
 static long long page_fault_cnt;
@@ -153,27 +155,7 @@ page_fault (struct intr_frame *f)
    * Requried to pass cases with bad pointers such as bad-read, bad-read2, etc.
    */
   if (user) {
-    int status = -1;
-    struct thread *t = thread_current ();
-    struct list children = t->parent->child_threads;
-    struct list_elem *e;
-    printf ("%s: exit(%d)\n", t->name, status);
-    /*
-      Look for current ID in parent's list of child threads and set it's
-      exit status in the list element's child structure
-    */
-    for (e = list_begin (&children); e != list_end (&children); e = list_next (e)) {
-      struct child_thread_status *c = list_entry (e, struct child_thread_status, child_elem);
-
-      /* If child's ID is equal to current thread's ID */
-      if (c->tid == t->tid) {
-        c->has_exited = true;
-        c->exit_code = status;
-        sema_up (&c->wait_sema);
-        break;
-      }
-    }
-    thread_exit ();
+    sys_exit (-1);
   }
 
   /* To implement virtual memory, delete the rest of the function
