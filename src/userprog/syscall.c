@@ -15,6 +15,8 @@
 #include "userprog/process.h"
 #include "userprog/syscall_impl.h"
 
+void *USER_CODE_SEGMENT=(void *)(0x08048000);
+
 static void syscall_handler (struct intr_frame *);
 
 void syscall_init (void) {
