@@ -23,6 +23,7 @@
 
 static thread_func start_process NO_RETURN;
 static bool load (const char *cmdline, void (**eip) (void), void **esp, int argc, char **argv);
+struct child_thread_status* initialize_child (tid_t tid);
 
 #define MAX_ARGS 10
 
@@ -54,13 +55,7 @@ process_execute (const char *file_name)
     palloc_free_page (fn_copy);
   } else {
     struct thread *t = thread_current ();
-    struct child_thread_status *child;
-    child = malloc (sizeof *child);
-    child->tid = tid;
-    child->has_exited = false;
-    child->has_loaded = false;
-    child->has_wait_called = false;
-    child->load_status = -1;
+    struct child_thread_status *child = initialize_child (tid);
 
     sema_init (&child->wait_sema, 0);
     sema_init (&child->load_sema, 0);
@@ -591,4 +586,15 @@ install_page (void *upage, void *kpage, bool writable)
      address, then map our page there. */
   return (pagedir_get_page (t->pagedir, upage) == NULL
           && pagedir_set_page (t->pagedir, upage, kpage, writable));
+}
+
+struct child_thread_status* initialize_child (tid_t tid) {
+  struct child_thread_status *child;
+  child = malloc (sizeof *child);
+  child->tid = tid;
+  child->has_exited = false;
+  child->has_loaded = false;
+  child->has_wait_called = false;
+  child->load_status = -1;
+  return child;
 }
