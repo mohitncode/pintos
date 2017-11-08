@@ -193,6 +193,8 @@ int sys_write (int fd, void* buffer, int buffer_size) {
       }
     }
     lock_release (&filesystem_lock);
+  } else {
+    sys_exit (status);
   }
 
   return status;
@@ -297,10 +299,10 @@ int sys_read (int fd, void *buffer, int size) {
           break;
         }
       }
-    } else {
-      sys_exit (-1);
     }
     lock_release (&filesystem_lock);
+  } else {
+    sys_exit (-1);
   }
 
   return status;
