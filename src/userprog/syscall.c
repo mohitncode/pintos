@@ -13,31 +13,9 @@
 #include "threads/thread.h"
 #include "threads/vaddr.h"
 #include "userprog/process.h"
-
-#define USER_CODE_SEGMENT ((void *) 0x08048000)
-
-struct lock filesystem_lock;
-
-/* File descriptor structure */
-struct file_descriptor {
-  int fid;
-  struct file *file_ref;
-  struct list_elem file_elem;
-};
+#include "userprog/syscall_impl.h"
 
 static void syscall_handler (struct intr_frame *);
-
-/* Prototype for syscall methods */
-int sys_write (int fd, void *buf, int size);
-void sys_exit (int s);
-int validate_ptr (void* uptr);
-int sys_create (char* name, int initial_size);
-int sys_open (char* name);
-int sys_read (int fd, void *buffer, off_t size);
-int sys_filesize (int fd);
-void sys_seek (int fd, int location);
-int sys_tell (int fd);
-tid_t sys_exec (char* file);
 
 void syscall_init (void) {
   intr_register_int (0x30, 3, INTR_ON, syscall_handler, "syscall");
@@ -97,8 +75,8 @@ static void syscall_handler (struct intr_frame *f ) {
   }
 }
 
-tid_t sys_exec (char *args) {
-  tid_t thread_id;
+int sys_exec (char *args) {
+  int thread_id;
   if (validate_ptr (args)) {
     lock_acquire (&filesystem_lock);
     thread_id = process_execute (args);
@@ -112,7 +90,7 @@ tid_t sys_exec (char *args) {
 int sys_tell (int fd){
   struct thread *t = thread_current ();
   struct list_elem *e;
-  off_t status=-1;
+  int status = -1;
 
   lock_acquire (&filesystem_lock);
   for (e = list_begin (&t->files); e != list_end (&t->files); e = list_next (e)) {
