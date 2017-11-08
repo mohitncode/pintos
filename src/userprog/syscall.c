@@ -27,10 +27,25 @@ static void syscall_handler (struct intr_frame *f ) {
 
   int32_t *esp = f->esp;
 
-  if (!validate_ptr (esp) || (void *) esp < USER_CODE_SEGMENT ||
-    !validate_ptr (esp + 1) || (void *) (esp + 1) < USER_CODE_SEGMENT) {
-    sys_exit (-1);
-  }
+if(validate_ptr(esp)==0)
+{
+  sys_exit(-1);
+
+}
+else if((void *)esp <USER_CODE_SEGMENT)
+{
+  sys_exit(-1);
+}
+else if (validate_ptr(esp+1)==0)
+{
+  sys_exit(-1);
+}
+else if((void *)(esp+1)<USER_CODE_SEGMENT)
+{
+  sys_exit(-1);
+}
+else{
+
 
   switch (*esp) {
     case SYS_HALT:
@@ -73,6 +88,7 @@ static void syscall_handler (struct intr_frame *f ) {
     default:
       sys_exit (-1);
   }
+}
 }
 
 int sys_exec (char *args) {
@@ -180,12 +196,28 @@ int sys_write (int fd, void* buffer, int buffer_size) {
 }
 
 int validate_ptr (void* uptr) {
-  if (!is_user_vaddr (uptr) || uptr < USER_CODE_SEGMENT || !uptr
-      || pagedir_get_page (thread_current ()->pagedir, uptr) == NULL) {
-    return 0;
-  } else {
-    return 1;
-  }
+  
+if(uptr==NULL)
+{
+  return 0;
+}
+else if(is_user_vaddr(uptr)==0)
+{
+  return 0;
+}
+else if(uptr<USER_CODE_SEGMENT)
+{
+  return 0;
+}
+else if(pagedir_get_page(thread_current()->pagedir,uptr)==NULL)
+{
+  return 0;
+}
+else 
+{
+  return 1;
+}
+
 }
 
 int sys_create (char* name, int initial_size) {
