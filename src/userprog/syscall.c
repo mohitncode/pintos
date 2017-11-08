@@ -5,6 +5,7 @@
 #include "userprog/syscall.h"
 #include "userprog/pagedir.h"
 #include <stdio.h>
+#include <string.h>
 #include <syscall-nr.h>
 #include "threads/interrupt.h"
 #include "threads/malloc.h"
@@ -227,10 +228,20 @@ int sys_open (char* name){
   if (validate_ptr (name)) {
     lock_acquire (&filesystem_lock);
     struct file *f = filesys_open (name);
+
+
     lock_release (&filesystem_lock);
+
 
     if (f != NULL) {
       struct thread *t = thread_current ();
+
+      // If the file requested for opening is the current thread's executable
+      // deny writes to it
+      if (0 == strcmp (name, t->name) || 0 == (strcmp (name, t->parent->name))){
+        file_deny_write (f);
+      }
+
       struct file_descriptor *fd;
       fd = malloc (sizeof *fd);
 
