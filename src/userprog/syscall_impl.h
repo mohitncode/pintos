@@ -1,5 +1,3 @@
-#define USER_CODE_SEGMENT ((void *) 0x08048000)
-
 struct lock filesystem_lock;
 
 /* File descriptor structure */
