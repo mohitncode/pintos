@@ -38,46 +38,34 @@ static void syscall_handler (struct intr_frame *f ) {
   } else if ((void *) (esp + 1) < USER_CODE_SEGMENT) {
     sys_exit (-1);
   } else {
-    switch (*esp) {
-      case SYS_HALT:
-        shutdown_power_off ();
-        break;
-      case SYS_EXIT:
-        sys_exit (*(esp + 1));
-        break;
-      case SYS_EXEC:
-        f->eax = sys_exec ((char *) *(esp + 1));
-        break;
-      case SYS_WAIT:
-        f->eax = process_wait (*(esp + 1));
-        break;
-      case SYS_CREATE:
-         f->eax = sys_create ((char *) *(esp + 1), *(esp + 2));
-         break;
-      case SYS_REMOVE:
-        break;
-      case SYS_OPEN:
-        f->eax = sys_open ((char *) *(esp + 1));
-        break;
-      case SYS_FILESIZE:
-        f->eax = sys_filesize (*(esp + 1));
-        break;
-      case SYS_READ:
-        f->eax = sys_read (*(esp + 1), (void *) *(esp + 2), *(esp + 3));
-        break;
-      case SYS_WRITE:
-        f->eax = sys_write (*(esp + 1), (void *) *(esp + 2), *(esp + 3));
-        break;
-      case SYS_SEEK:
-        sys_seek (*(esp + 1),*(esp + 2));
-        break;
-      case SYS_TELL:
-         f->eax = sys_tell(*(esp + 1));
-        break;
-      case SYS_CLOSE:
-        break;
-      default:
-        sys_exit (-1);
+    if (SYS_HALT == *esp) {
+      shutdown_power_off ();
+    } else if (SYS_EXIT == *esp) {
+      sys_exit (*(esp + 1));
+    } else if (SYS_EXEC == *esp) {
+      f->eax = sys_exec ((char *) *(esp + 1));
+    } else if (SYS_WAIT == *esp) {
+      f->eax = process_wait (*(esp + 1));
+    } else if (SYS_CREATE == *esp) {
+      f->eax = sys_create ((char *) *(esp + 1), *(esp + 2));
+    } else if (SYS_REMOVE == *esp) {
+      // TODO
+    } else if (SYS_OPEN == *esp) {
+      f->eax = sys_open ((char *) *(esp + 1));
+    } else if (SYS_FILESIZE == *esp) {
+      f->eax = sys_filesize (*(esp + 1));
+    } else if (SYS_READ == *esp) {
+      f->eax = sys_read (*(esp + 1), (void *) *(esp + 2), *(esp + 3));
+    } else if (SYS_WRITE == *esp) {
+      f->eax = sys_write (*(esp + 1), (void *) *(esp + 2), *(esp + 3));
+    } else if (SYS_SEEK == *esp) {
+      sys_seek (*(esp + 1),*(esp + 2));
+    } else if (SYS_TELL == *esp) {
+      f->eax = sys_tell(*(esp + 1));
+    } else if (SYS_CLOSE == *esp) {
+      // TODO
+    } else {
+      sys_exit (-1);
     }
   }
 }
@@ -184,29 +172,18 @@ int sys_write (int fd, void* buffer, int buffer_size) {
   return status;
 }
 
-int validate_ptr (void* uptr) {
-
-if(uptr==NULL)
-{
-  return 0;
-}
-else if(is_user_vaddr(uptr)==0)
-{
-  return 0;
-}
-else if(uptr<USER_CODE_SEGMENT)
-{
-  return 0;
-}
-else if(pagedir_get_page(thread_current()->pagedir,uptr)==NULL)
-{
-  return 0;
-}
-else
-{
-  return 1;
-}
-
+int validate_ptr (void *uptr) {
+  if (NULL == uptr) {
+    return 0;
+  } else if (0 == is_user_vaddr (uptr)) {
+    return 0;
+  } else if (uptr < USER_CODE_SEGMENT) {
+    return 0;
+  } else if(NULL == pagedir_get_page (thread_current ()->pagedir, uptr)) {
+    return 0;
+  } else {
+    return 1;
+  }
 }
 
 int sys_create (char* name, int initial_size) {
