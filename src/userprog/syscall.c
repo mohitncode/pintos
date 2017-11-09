@@ -63,7 +63,7 @@ static void syscall_handler (struct intr_frame *f ) {
     } else if (SYS_TELL == *esp) {
       f->eax = sys_tell(*(esp + 1));
     } else if (SYS_CLOSE == *esp) {
-      // TODO
+      sys_close (*(esp + 1));
     } else {
       sys_exit (-1);
     }
@@ -198,6 +198,25 @@ int sys_create (char* name, int initial_size) {
   return status;
 }
 
+void sys_close (int fd) {
+  struct thread *t = thread_current ();
+  struct list_elem *e;
+
+  for (e = list_begin (&t->files); e != list_end (&t->files); e = list_next (e)) {
+    struct file_descriptor *f = list_entry (e, struct file_descriptor, file_elem);
+
+    /* If child's ID is equal to current thread's ID */
+    if (f->fid == fd) {
+      lock_acquire (&filesystem_lock);
+      list_remove (e);
+      file_close (f->file_ref);
+      free (f);
+      lock_release (&filesystem_lock);
+      break;
+    }
+  }
+}
+
 int sys_open (char* name){
   int status = -1;
 
@@ -208,13 +227,6 @@ int sys_open (char* name){
     lock_release (&filesystem_lock);
     if (f != NULL) {
       struct thread *t = thread_current ();
-
-      // If the file requested for opening is the current thread's executable
-      // deny writes to it
-      if (0 == strcmp (name, t->name) || 0 == (strcmp (name, t->parent->name))){
-        file_deny_write (f);
-      }
-
       struct file_descriptor *fd;
       fd = malloc (sizeof *fd);
 

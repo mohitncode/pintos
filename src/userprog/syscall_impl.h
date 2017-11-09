@@ -18,4 +18,5 @@ int sys_filesize (int fd);
 void sys_seek (int fd, int location);
 int sys_tell (int fd);
 int sys_exec (char *file);
+void sys_close (int fd);
 

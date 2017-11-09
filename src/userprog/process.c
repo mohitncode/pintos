@@ -1,6 +1,5 @@
 #include <stdlib.h>
 #include "userprog/process.h"
-
 #include <debug.h>
 #include <inttypes.h>
 #include <round.h>
@@ -25,6 +24,7 @@
 static thread_func start_process NO_RETURN;
 static bool load (const char *cmdline, void (**eip) (void), void **esp, int argc, char **argv);
 struct child_thread_status* initialize_child (tid_t tid);
+void free_process_resources (struct thread *t);
 
 #define MAX_ARGS 10
 
@@ -185,9 +185,7 @@ void process_exit (void) {
     pagedir_destroy (pd);
   }
 
-  // for (e = list_begin (&children); e != list_end (&children); e = list_next (e)) {
-    // list_remove (e);
-  // }
+  free_process_resources (cur);
 }
 
 /* Sets up the CPU for running user code in the current
@@ -299,8 +297,6 @@ load (const char *file_name, void (**eip) (void), void **esp, int argc, char **a
   if (file == NULL) {
     printf ("load: %s: open failed\n", file_name);
     goto done;
-  } else {
-    file_deny_write (file);
   }
 
   /* Read and verify executable header. */
@@ -594,4 +590,31 @@ struct child_thread_status* initialize_child (tid_t tid) {
   child->tid = tid;
   child->load_status = -1;
   return child;
+}
+
+void free_process_resources (struct thread *t) {
+  struct list_elem *e;
+  struct list_elem *next;
+
+  // Remove child processes
+  e = list_begin (&t->child_threads);
+
+  while (e != list_end (&t->child_threads)) {
+    next = list_next (e);
+    struct child_thread_status *c = list_entry (e, struct child_thread_status, child_elem);
+    list_remove (e);
+    free (c);
+    e = next;
+  }
+
+  // Close files
+  e = list_begin (&t->files);
+  while (e != list_end (&t->files)) {
+    next = list_next (e);
+    struct file_descriptor *file = list_entry (e, struct file_descriptor, file_elem);
+    list_remove (e);
+    sys_close (file->fid);
+    free (file);
+    e = next;
+  }
 }
