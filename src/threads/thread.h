@@ -29,8 +29,6 @@ struct child_thread_status {
   tid_t tid;
   int load_status;
   int exit_code;
-  bool has_exited;
-  bool has_loaded;
   bool has_wait_called;
   struct list_elem child_elem;
   struct semaphore wait_sema;

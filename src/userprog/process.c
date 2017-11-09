@@ -110,7 +110,6 @@ static void start_process (void *file_name_) {
     /* If child's ID is equal to current thread's ID */
     if (c->tid == t->tid) {
       if (success) {
-        c->has_loaded = true;
         c->load_status = t->tid;
       }
       sema_up (&c->load_sema);
@@ -593,9 +592,6 @@ struct child_thread_status* initialize_child (tid_t tid) {
   struct child_thread_status *child;
   child = malloc (sizeof *child);
   child->tid = tid;
-  child->has_exited = false;
-  child->has_loaded = false;
-  child->has_wait_called = false;
   child->load_status = -1;
   return child;
 }
