@@ -29,76 +29,63 @@ static void syscall_handler (struct intr_frame *f ) {
 
   int32_t *esp = f->esp;
 
-if(validate_ptr(esp)==0)
-{
-  sys_exit(-1);
-
-}
-else if((void *)esp <USER_CODE_SEGMENT)
-{
-  sys_exit(-1);
-}
-else if (validate_ptr(esp+1)==0)
-{
-  sys_exit(-1);
-}
-else if((void *)(esp+1)<USER_CODE_SEGMENT)
-{
-  sys_exit(-1);
-}
-else{
-
-
-  switch (*esp) {
-    case SYS_HALT:
-      shutdown_power_off ();
-      break;
-    case SYS_EXIT:
-      sys_exit (*(esp + 1));
-      break;
-    case SYS_EXEC:
-      f->eax = sys_exec ((char *) *(esp + 1));
-      break;
-    case SYS_WAIT:
-      f->eax = process_wait (*(esp + 1));
-      break;
-    case SYS_CREATE:
-       f->eax = sys_create ((char *) *(esp + 1), *(esp + 2));
-       break;
-    case SYS_REMOVE:
-      break;
-    case SYS_OPEN:
-      f->eax = sys_open ((char *) *(esp + 1));
-      break;
-    case SYS_FILESIZE:
-      f->eax = sys_filesize (*(esp + 1));
-      break;
-    case SYS_READ:
-      f->eax = sys_read (*(esp + 1), (void *) *(esp + 2), *(esp + 3));
-      break;
-    case SYS_WRITE:
-      f->eax = sys_write (*(esp + 1), (void *) *(esp + 2), *(esp + 3));
-      break;
-    case SYS_SEEK:
-      sys_seek (*(esp + 1),*(esp + 2));
-      break;
-    case SYS_TELL:
-       f->eax = sys_tell(*(esp + 1));
-      break;
-    case SYS_CLOSE:
-      break;
-    default:
-      sys_exit (-1);
+  if(0 == validate_ptr (esp)) {
+    sys_exit (-1);
+  } else if ((void *) esp < USER_CODE_SEGMENT) {
+    sys_exit (-1);
+  } else if (0 == validate_ptr (esp + 1)) {
+    sys_exit (-1);
+  } else if ((void *) (esp + 1) < USER_CODE_SEGMENT) {
+    sys_exit (-1);
+  } else {
+    switch (*esp) {
+      case SYS_HALT:
+        shutdown_power_off ();
+        break;
+      case SYS_EXIT:
+        sys_exit (*(esp + 1));
+        break;
+      case SYS_EXEC:
+        f->eax = sys_exec ((char *) *(esp + 1));
+        break;
+      case SYS_WAIT:
+        f->eax = process_wait (*(esp + 1));
+        break;
+      case SYS_CREATE:
+         f->eax = sys_create ((char *) *(esp + 1), *(esp + 2));
+         break;
+      case SYS_REMOVE:
+        break;
+      case SYS_OPEN:
+        f->eax = sys_open ((char *) *(esp + 1));
+        break;
+      case SYS_FILESIZE:
+        f->eax = sys_filesize (*(esp + 1));
+        break;
+      case SYS_READ:
+        f->eax = sys_read (*(esp + 1), (void *) *(esp + 2), *(esp + 3));
+        break;
+      case SYS_WRITE:
+        f->eax = sys_write (*(esp + 1), (void *) *(esp + 2), *(esp + 3));
+        break;
+      case SYS_SEEK:
+        sys_seek (*(esp + 1),*(esp + 2));
+        break;
+      case SYS_TELL:
+         f->eax = sys_tell(*(esp + 1));
+        break;
+      case SYS_CLOSE:
+        break;
+      default:
+        sys_exit (-1);
+    }
   }
-}
 }
 
 int sys_exec (char *args) {
   int thread_id;
   if (validate_ptr (args)) {
-    lock_acquire (&filesystem_lock);
     thread_id = process_execute (args);
-    lock_release (&filesystem_lock);
   } else {
     sys_exit (-1);
   }
@@ -198,7 +185,7 @@ int sys_write (int fd, void* buffer, int buffer_size) {
 }
 
 int validate_ptr (void* uptr) {
-  
+
 if(uptr==NULL)
 {
   return 0;
@@ -215,7 +202,7 @@ else if(pagedir_get_page(thread_current()->pagedir,uptr)==NULL)
 {
   return 0;
 }
-else 
+else
 {
   return 1;
 }
@@ -241,10 +228,7 @@ int sys_open (char* name){
     lock_acquire (&filesystem_lock);
     struct file *f = filesys_open (name);
 
-
     lock_release (&filesystem_lock);
-
-
     if (f != NULL) {
       struct thread *t = thread_current ();
 
