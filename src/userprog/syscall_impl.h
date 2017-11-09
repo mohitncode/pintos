@@ -20,3 +20,4 @@ int sys_tell (int fd);
 int sys_exec (char *file);
 void sys_close (int fd);
 
+void close_process_files (struct thread *process);

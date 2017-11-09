@@ -45,8 +45,8 @@ process_execute (const char *file_name)
     return TID_ERROR;
   strlcpy (fn_copy, file_name, PGSIZE);
 
-  char *command_copy = palloc_get_page (0);
-  strlcpy (command_copy, file_name, PGSIZE);
+  char *command_copy = malloc ((strlen (file_name) + 1) * sizeof (char *));
+  strlcpy (command_copy, file_name, strlen (file_name) + 1);
   char *save_ptr;
   char *command = strtok_r (command_copy, " ", &save_ptr);
 
@@ -56,6 +56,7 @@ process_execute (const char *file_name)
     palloc_free_page (fn_copy);
   } else {
     struct thread *t = thread_current ();
+    // printf ("Thread with ID %d spawned thread %d\n", t->tid, tid);
     struct child_thread_status *child = initialize_child (tid);
 
     sema_init (&child->wait_sema, 0);
@@ -81,7 +82,7 @@ static void start_process (void *file_name_) {
   char *save_ptr, *token;
   token = strtok_r (file_name, " ", &save_ptr);
   int argc = 0;
-  char **argv= malloc (MAX_ARGS * sizeof (char *));
+  char **argv = malloc (MAX_ARGS * sizeof (char *));
   *argv = token;
 
   while (token != NULL) {
@@ -168,6 +169,8 @@ int process_wait (tid_t child_tid) {
 void process_exit (void) {
   struct thread *cur = thread_current ();
   uint32_t *pd;
+
+  // palloc_free_page (cur->name);
 
   /* Destroy the current process's page directory and switch back
      to the kernel-only page directory. */
@@ -604,17 +607,6 @@ void free_process_resources (struct thread *t) {
     struct child_thread_status *c = list_entry (e, struct child_thread_status, child_elem);
     list_remove (e);
     free (c);
-    e = next;
-  }
-
-  // Close files
-  e = list_begin (&t->files);
-  while (e != list_end (&t->files)) {
-    next = list_next (e);
-    struct file_descriptor *file = list_entry (e, struct file_descriptor, file_elem);
-    list_remove (e);
-    sys_close (file->fid);
-    free (file);
     e = next;
   }
 }

@@ -130,6 +130,7 @@ void sys_exit (int status) {
     if (c->tid == t->tid) {
       c->exit_code = status;
       printf ("%s: exit(%d)\n", t->name, status);
+      close_process_files (t);
       sema_up (&c->wait_sema);
       break;
     }
@@ -302,4 +303,23 @@ int sys_read (int fd, void *buffer, int size) {
   }
 
   return status;
+}
+
+void close_process_files (struct thread *process) {
+  // Close files
+  if (process != NULL) {
+    lock_acquire (&filesystem_lock);
+    struct list_elem *f;
+    struct list_elem *next;
+    f = list_begin (&process->files);
+    while (f != list_end (&process->files)) {
+      next = list_next (f);
+      struct file_descriptor *file = list_entry (f, struct file_descriptor, file_elem);
+      list_remove (f);
+      file_close (file->file_ref);
+      free (file);
+      f = next;
+    }
+    lock_release (&filesystem_lock);
+  }
 }

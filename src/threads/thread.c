@@ -577,6 +577,21 @@ schedule (void)
   thread_schedule_tail (prev);
 }
 
+struct thread* thread_lookup (tid_t tid) {
+  struct thread *t = NULL;
+  struct list_elem *e;
+
+  for (e = list_begin (&all_list); e != list_end (&all_list);
+    e = list_next (e)) {
+    struct thread *temp = list_entry (e, struct thread, allelem);
+    if (temp->tid == tid) {
+      t = temp;
+      break;
+    }
+  }
+  return t;
+}
+
 /* Returns a tid to use for a new thread. */
 static tid_t
 allocate_tid (void)
