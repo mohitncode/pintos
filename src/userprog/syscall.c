@@ -220,14 +220,18 @@ void sys_close (int fd) {
 
 int sys_open (char* name){
   int status = -1;
+  struct thread *t = thread_current ();
 
   if (validate_ptr (name)) {
     lock_acquire (&filesystem_lock);
     struct file *f = filesys_open (name);
 
+    if (0 == strcmp (name, t->name)) {
+      file_deny_write (f);
+    }
+
     lock_release (&filesystem_lock);
     if (f != NULL) {
-      struct thread *t = thread_current ();
       struct file_descriptor *fd;
       fd = malloc (sizeof *fd);
 
